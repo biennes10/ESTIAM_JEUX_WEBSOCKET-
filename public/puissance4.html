@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Puissance 4 Multijoueur</title>
-    <link rel="icon" type="image/png" href="images/puissance4-icon.png" sizes="16x16">
+    <!-- Favicon Link -->
+    <link rel="icon" type="image/png" href="images/puissance4-icon.png"> <!-- Assurez-vous que le chemin est correct -->
     <!-- Confetti pour la victoire -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
@@ -19,7 +20,7 @@
             --p4-board-width: calc(var(--p4-columns) * (var(--p4-cell-size) + var(--p4-gap)) - var(--p4-gap));
             --p4-board-height: calc(var(--p4-rows) * (var(--p4-cell-size) + var(--p4-gap)) - var(--p4-gap));
             --p4-drop-zone-height: 45px; /* UPDATED: Slightly smaller drop zone */
-    
+
             /* Colors */
             --border-color: #ccc;
             --background-light: #f4f4f4; /* Light grey background */
@@ -37,7 +38,7 @@
             --chat-my-message-bg: #dcf8c6;
             --chat-opponent-message-bg: #e9e9eb;
         }
-    
+
         body {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
           display: flex;
@@ -51,14 +52,14 @@
           color: var(--text-dark);
           font-size: 16px;
         }
-    
+
         h1 {
           margin-top: 0;
           margin-bottom: 15px;
           color: var(--text-dark);
           text-align: center;
         }
-    
+
         #connection-status {
           margin-bottom: 15px;
           font-style: italic;
@@ -66,8 +67,8 @@
           min-height: 1.2em;
           text-align: center;
         }
-    
-    
+
+
         #connection-container,
         #app-container {
           width: 100%;
@@ -76,7 +77,7 @@
           flex-direction: column;
           align-items: center;
         }
-    
+
         #connection-container {
             text-align: center;
             /* display: none; Caché/affiché via JS */
@@ -89,15 +90,15 @@
              flex-wrap: wrap; /* Pour petits écrans */
              gap: 8px;
          }
-    
+
         /* Conteneur principal jeu + chat */
         #app-container {
           /* display: none; Caché/affiché via JS */
           margin-top: 15px;
           /* Mobile first: chat en bas par défaut */
         }
-    
-    
+
+
         #game-container {
           text-align: center;
           width: 100%;
@@ -106,7 +107,7 @@
           order: 1;
           margin-bottom: 20px;
         }
-    
+
         /* ---- Puissance 4 Specific Board Styles ---- */
         #p4-drop-zone-container {
             display: grid;
@@ -116,7 +117,7 @@
             margin: 0 auto 5px auto; /* Space below drop zones */
             height: var(--p4-drop-zone-height);
         }
-    
+
         .p4-drop-zone {
             height: 100%;
             background-color: rgba(255, 255, 255, 0.2);
@@ -145,8 +146,8 @@
          .p4-drop-zone.disabled:hover {
              background-color: rgba(150, 150, 150, 0.1);
          }
-    
-    
+
+
         #p4-board {
           display: grid;
           grid-template-columns: repeat(var(--p4-columns), var(--p4-cell-size));
@@ -161,8 +162,9 @@
           padding: var(--p4-gap); /* Inner padding to see board color */
           box-shadow: 0 4px 10px rgba(0,0,0,0.2);
           position: relative; /* For potential animations */
+          overflow: hidden; /* Hide parts of animation starting above */
         }
-    
+
         .p4-cell {
           width: var(--p4-cell-size);
           height: var(--p4-cell-size);
@@ -174,7 +176,7 @@
           align-items: center;
           position: relative; /* For the piece pseudo-element */
         }
-    
+
         /* Style for the piece itself (using ::after pseudo-element) */
         .p4-cell::after {
             content: '';
@@ -183,31 +185,44 @@
             height: 85%;
             border-radius: 50%;
             background-color: transparent; /* Empty by default */
-            transition: background-color 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth transition */
+            /* ONLY transition background-color */
+            transition: background-color 0.3s ease;
             position: absolute;
             box-shadow: inset 0 -3px 5px rgba(0,0,0,0.2); /* Inner shadow for depth */
+            /* Start animation off-screen (ensured by keyframes `from`) */
+            transform: translateY(0); /* Default state */
         }
-    
+
         .p4-cell.player-R::after { background-color: var(--p4-player-r-color); }
         .p4-cell.player-J::after { background-color: var(--p4-player-j-color); }
-    
-         /* Add a subtle animation when a piece appears */
-        @keyframes dropPiece {
-            from { transform: translateY(-80px) scale(0.8); opacity: 0.5; } /* Adjust distance */
-            to   { transform: translateY(0) scale(1); opacity: 1; }
+
+         /* --- Animation de chute du jeton --- */
+        @keyframes dropPieceAnimation {
+          from {
+            transform: translateY(-200px) scale(0.9); /* Commence au-dessus */
+            opacity: 0.6;
+          }
+          /* Optionnel: Rebond */
+          /* 80% { transform: translateY(5px) scale(1.05); opacity: 1;} */
+          to {
+            transform: translateY(0) scale(1); /* Position finale */
+            opacity: 1;
+          }
         }
-         /* We'll apply this class briefly via JS */
-        .p4-cell.dropped::after {
-            animation: dropPiece 0.4s ease-out forwards;
+
+        /* Classe à ajouter temporairement à la cellule via JS */
+        .p4-cell.animate-drop::after {
+          /* Applique l'animation au pseudo-élément ::after */
+          animation: dropPieceAnimation 0.5s cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
         }
-    
+
         /* Highlighting winning pieces */
         .p4-cell.winner-animation::after {
             box-shadow: 0 0 8px 4px white, inset 0 -3px 5px rgba(0,0,0,0.2); /* White glow */
         }
         /* ---- End Puissance 4 Styles ---- */
-    
-    
+
+
         .game-info { margin-bottom: 15px; line-height: 1.5; }
         .game-info h2 { font-size: 1.1em; margin: 0 0 5px 0; }
         .game-info span { font-weight: bold; }
@@ -216,8 +231,8 @@
         #player-symbol.player-J { color: var(--p4-player-j-color); font-weight: bold; }
         #current-turn.player-R { color: var(--p4-player-r-color); font-weight: bold; }
         #current-turn.player-J { color: var(--p4-player-j-color); font-weight: bold; }
-    
-    
+
+
         #status-message {
             margin-top: 15px;
             font-weight: bold;
@@ -225,8 +240,8 @@
             min-height: 1.5em; /* Empêche sauts de layout */
             color: var(--text-light);
         }
-    
-    
+
+
         /* Generic Animations (Keep if used for confetti/overlay) */
         @keyframes winner-glow { /* Unused for P4 highlighting but maybe for something else */ }
         @keyframes looser-shake {
@@ -239,8 +254,8 @@
             animation: looser-shake 0.8s cubic-bezier(.36,.07,.19,.97) both 3;
         }
         @keyframes draw-pulse { /* Not really used for P4 */ }
-    
-    
+
+
         /* Overlay Message (Keep as is) */
         #overlay-message {
           position: fixed;
@@ -269,7 +284,7 @@
           -webkit-background-clip: text;
           color: transparent;
         }
-    
+
         /* Buttons (Generic styles) */
         button {
           padding: 10px 18px;
@@ -303,7 +318,7 @@
         #join-game { background-color: var(--p4-player-j-color); color: var(--text-dark); } /* Yellow, dark text */
         #replay-button { background-color: #673ab7; display: none;} /* Violet */
         #send-chat-message { background-color: #128C7E; border-radius: 5px; min-width: 70px; } /* WhatsApp Green */
-    
+
         /* Input (Generic styles) */
         input[type="text"] {
           padding: 10px;
@@ -318,11 +333,11 @@
           box-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
         }
         #game-id-input { margin-right: 5px; }
-    
+
         /* Replay Controls (Generic styles) */
         #replay-controls { display: none; margin-top: 20px; }
         #replay-info { margin-top: 10px; font-style: italic; color: var(--text-light); min-height: 1.2em; }
-    
+
         /* Chat Styles (Generic) */
         #chat-container {
           border: 1px solid var(--border-color);
@@ -338,7 +353,7 @@
           box-shadow: 0 2px 5px rgba(0,0,0,0.1);
           /* display: none; Caché/affiché via JS */
         }
-    
+
         #chat-messages {
           flex-grow: 1;
           overflow-y: auto;
@@ -347,7 +362,7 @@
           border-bottom: 1px solid #eee;
           scroll-behavior: smooth; /* Défilement doux */
         }
-    
+
         .chat-message {
           margin-bottom: 8px;
           padding: 6px 10px;
@@ -358,7 +373,7 @@
           font-size: 0.95em;
         }
         .chat-message .sender { font-weight: bold; margin-right: 5px; }
-    
+
         .chat-message.my-message {
           background-color: var(--chat-my-message-bg);
           margin-left: auto;
@@ -366,7 +381,7 @@
           border-bottom-right-radius: 4px; /* Petite variation */
         }
         .chat-message.my-message .sender { display: none; }
-    
+
         .chat-message.opponent-message {
           background-color: var(--chat-opponent-message-bg);
           margin-right: auto;
@@ -376,7 +391,7 @@
          /* Chat sender colors adapted for P4 */
          .chat-message.opponent-message .sender.player-R { color: var(--p4-player-r-color); }
          .chat-message.opponent-message .sender.player-J { color: var(--p4-player-j-color); }
-    
+
         .chat-message.system-message {
             font-style: italic;
             color: var(--text-light);
@@ -386,7 +401,7 @@
             font-size: 0.9em;
             max-width: 100%;
         }
-    
+
         /* Zone de saisie du chat - Défaut (Mobile) */
         #chat-input-area {
           display: flex;
@@ -396,7 +411,7 @@
           border-top: 1px solid #eee;
           gap: 8px; /* Espace entre input et bouton */
         }
-    
+
         #chat-input {
           flex-grow: 1; /* Prend la largeur dans ce layout */
           padding: 10px 12px;
@@ -409,14 +424,14 @@
           width: 100%; /* Prend toute la largeur */
         }
         #chat-input:disabled { background-color: #f0f0f0; cursor: not-allowed; }
-    
+
         #send-chat-message {
           /* Le bouton prend sa largeur naturelle ou définissez une largeur si besoin */
            padding: 10px 18px; /* Ajustez si nécessaire */
            /* align-self: center; /* Décommentez pour centrer */
         }
-    
-    
+
+
         /* Desktop Layout */
         @media (min-width: 768px) {
            :root {
@@ -424,21 +439,21 @@
                 --p4-cell-size: 65px;
                 --p4-drop-zone-height: 50px; /* Adjust drop zone height too */
             }
-    
+
           #app-container {
             flex-direction: row; /* Jeu à gauche, chat à droite */
             align-items: flex-start; /* Aligner en haut */
             justify-content: center; /* Centrer les deux blocs */
             gap: 30px; /* Plus d'espace entre jeu et chat */
           }
-    
+
           #game-container {
             order: 1;
             width: auto; /* Taille basée sur contenu */
             max-width: none;
             margin-bottom: 0; /* Pas de marge en bas si à côté */
           }
-    
+
           #chat-container {
             order: 2;
             margin-top: 0;
@@ -448,7 +463,7 @@
             max-width: none;
             flex-shrink: 0; /* Empêcher le chat de rétrécir */
           }
-    
+
           /* Zone de saisie du chat - Override pour Desktop */
           #chat-input-area {
             flex-direction: row; /* Remettre en ligne */
@@ -456,19 +471,19 @@
             gap: 8px; /* Espace horizontal */
              padding: 8px; /* Retour au padding original si désiré */
           }
-    
+
           #chat-input {
               /* flex-grow: 1; est déjà défini */
               width: auto; /* Laisser flexbox gérer la largeur */
               /* margin-right: 8px; /* Optionnel, gap gère l'espace */
           }
-    
+
           #send-chat-message {
                /* Pas besoin de align-self ici */
                /* Le padding peut rester le même ou être ajusté */
           }
         }
-    
+
          @media (min-width: 1024px) {
              :root {
                  /* UPDATED: Larger cells for large desktop */
@@ -581,24 +596,20 @@
 
         // --- WebSocket Connection & Handling (Mostly Unchanged) ---
         function connectWebSocket() {
-            // ... (Identique à morpion.html, gère la connexion/reconnexion) ...
-             if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { return; }
+             if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { console.log("WS already open/connecting."); return; }
             const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
             const wsUrl = `${wsProtocol}${window.location.host}`;
             console.log(`Attempting to connect to WebSocket at ${wsUrl}...`);
             connectionStatusDiv.textContent = `Connexion (essai ${reconnectAttempt + 1})...`;
             connectionStatusDiv.style.color = 'orange';
             ws = new WebSocket(wsUrl);
-            ws.onopen = () => { /* ... */ console.log('WS Open'); connectionStatusDiv.textContent = 'Connecté.'; connectionStatusDiv.style.color = 'green'; if (!gameId) { connectionContainer.style.display = 'block'; appContainer.style.display = 'none'; chatContainer.style.display = 'none'; } reconnectAttempt = 0; };
-            ws.onmessage = (event) => { try { const data = JSON.parse(event.data); console.log('Message received:', data); handleWebSocketMessage(data); } catch (e) { console.error("Parse/Handle Error:", e); }};
+            ws.onopen = () => { console.log('WS Open'); connectionStatusDiv.textContent = 'Connecté.'; connectionStatusDiv.style.color = 'green'; if (!gameId) { connectionContainer.style.display = 'block'; appContainer.style.display = 'none'; chatContainer.style.display = 'none'; } reconnectAttempt = 0; };
+            ws.onmessage = (event) => { try { const data = JSON.parse(event.data); console.log('Message received:', data.type); handleWebSocketMessage(data); } catch (e) { console.error("Parse/Handle Error:", e); }};
             ws.onerror = (error) => { console.error('WS Error:', error); connectionStatusDiv.textContent = 'Erreur connexion.'; connectionStatusDiv.style.color = 'var(--error-color)'; };
             ws.onclose = (event) => { console.log(`WS Closed: ${event.code}`); ws = null; isMyTurn = false; connectionContainer.style.display = 'none'; appContainer.style.display = 'none'; chatContainer.style.display = 'none'; if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) { reconnectAttempt++; const delay = Math.pow(2, reconnectAttempt) * 1000; connectionStatusDiv.textContent = `Déconnecté. Reconnexion dans ${delay / 1000}s...`; connectionStatusDiv.style.color = 'orange'; setTimeout(connectWebSocket, delay); } else { connectionStatusDiv.textContent = 'Déconnecté. Échec reconnexion.'; connectionStatusDiv.style.color = 'var(--error-color)'; alert("Connexion perdue."); }};
-
         }
 
         function handleWebSocketMessage(data) {
-             // ... (Identique à morpion.html pour: connected, game_created, game_started, move_made, game_over, replay_requested, replay_request_acknowledged, opponent_disconnected, chat_message, error)
-             // Les fonctions appelées (handleGameStarted, updateGameBoard, etc.) seront adaptées pour P4
             switch (data.type) {
                 case 'connected': clientId = data.clientId; console.log(`Client ID: ${clientId}`); break;
                 case 'game_created': handleGameCreated(data); break;
@@ -609,7 +620,13 @@
                 case 'replay_request_acknowledged': replayInfo.textContent = 'Demande Rejouer envoyée...'; replayButton.disabled = true; break;
                 case 'opponent_disconnected': handleOpponentDisconnected(data); break;
                 case 'chat_message': displayChatMessage(data); break;
-                case 'error': console.error(`Server Error: ${data.message}`); alert(`Erreur: ${data.message}`); createGameButton.disabled = false; joinGameButton.disabled = false; break;
+                case 'error':
+                    console.error(`Server Error: ${data.message}`);
+                    alert(`Erreur: ${data.message}`);
+                    // Re-enable buttons after error related to joining/creating
+                    createGameButton.disabled = false;
+                    joinGameButton.disabled = false;
+                    break;
                 default: console.log("Unknown message type:", data.type);
             }
         }
@@ -626,8 +643,7 @@
                 const dropZone = document.createElement('div');
                 dropZone.className = 'p4-drop-zone disabled'; // Start disabled
                 dropZone.dataset.column = col;
-                // Add visual cue like an arrow (optional)
-                // dropZone.innerHTML = '⬇'; // Down arrow
+                dropZone.innerHTML = ''; // Down arrow HTML entity (optional)
                 dropZone.addEventListener('click', handleDropZoneClick);
                 p4DropZoneContainer.appendChild(dropZone);
                 dropZones.push(dropZone);
@@ -645,11 +661,11 @@
 
         // --- Game Action Handling ---
         function handleDropZoneClick(event) {
-            if (!isMyTurn || isGameOver || event.target.classList.contains('disabled')) {
+            if (!isMyTurn || isGameOver || !event.currentTarget.classList.contains('p4-drop-zone') || event.currentTarget.classList.contains('disabled')) {
                  console.log("Drop ignored: Not turn, game over, or column full/disabled.");
                 return;
             }
-            const column = parseInt(event.target.dataset.column);
+            const column = parseInt(event.currentTarget.dataset.column);
 
             if (ws && ws.readyState === WebSocket.OPEN) {
                 console.log(`Sending move: column ${column}`);
@@ -668,36 +684,41 @@
             }
         }
 
-        function enableDropZones() {
-            // Only enable if it's my turn and game is not over
+         // Modified enableDropZones to accept current board state
+        function enableDropZones(currentBoard) {
             const canPlay = isMyTurn && !isGameOver;
-            dropZones.forEach(dz => {
-                 // We also need server state to know if column is full (handle in updateGameBoard)
-                 // For now, just enable/disable based on turn
-                 if (canPlay) {
-                     // Keep disabled class if column is full (server will tell us)
-                     if (!dz.classList.contains('full')) { // Check for 'full' class later
-                         dz.classList.remove('disabled');
-                         dz.classList.add('my-turn-hover'); // Add hover effect class
-                     }
-                 } else {
-                     dz.classList.add('disabled');
-                     dz.classList.remove('my-turn-hover');
-                 }
+            dropZones.forEach((dz, colIndex) => {
+                // Check if the column is full by looking at the top cell (row 0)
+                const topCellIndex = colIndex; // Index = 0 * P4_COLUMNS + col
+                const isColumnFull = currentBoard[topCellIndex] !== null;
+
+                if (canPlay && !isColumnFull) {
+                    dz.classList.remove('disabled', 'full');
+                    dz.classList.add('my-turn-hover');
+                } else {
+                    dz.classList.remove('my-turn-hover');
+                    dz.classList.add('disabled');
+                    if (isColumnFull) {
+                        dz.classList.add('full'); // Keep 'full' marker if it is full
+                    } else {
+                         dz.classList.remove('full'); // Ensure 'full' is removed if not full
+                    }
+                }
             });
         }
 
         function disableDropZones() {
             dropZones.forEach(dz => {
                 dz.classList.add('disabled');
-                dz.classList.remove('my-turn-hover');
+                dz.classList.remove('my-turn-hover', 'full'); // Clean up all state classes
             });
         }
 
+
         // --- Chat Handling (Identical to morpion.html) ---
-        function sendChatMessage() { /* ... */ if (!ws || ws.readyState !== WebSocket.OPEN || !gameId) { addSystemMessage("Non connecté/pas en jeu."); return; } const msg=chatInput.value.trim(); if (msg) { ws.send(JSON.stringify({ type: 'send_message', gameId, message: msg })); chatInput.value = ''; chatInput.focus();} }
-        function displayChatMessage(data) { /* ... */ const {senderSymbol, message}=data; const el=document.createElement('div'); el.classList.add('chat-message'); const sender=document.createElement('span'); sender.classList.add('sender'); if(senderSymbol===playerSymbol){el.classList.add('my-message');} else {el.classList.add('opponent-message'); sender.textContent=`${senderSymbol}:`; sender.classList.add(senderSymbol==='R'?'player-R':'player-J'); el.appendChild(sender);} const text=document.createTextNode(` ${message}`); el.appendChild(text); chatMessagesDiv.appendChild(el); scrollToBottom(chatMessagesDiv); }
-        function addSystemMessage(message) { /* ... */ const el=document.createElement('div'); el.classList.add('chat-message','system-message'); el.textContent=message; chatMessagesDiv.appendChild(el); scrollToBottom(chatMessagesDiv); }
+        function sendChatMessage() { if (!ws || ws.readyState !== WebSocket.OPEN || !gameId) { addSystemMessage("Non connecté/pas en jeu."); return; } const msg=chatInput.value.trim(); if (statusMessage.textContent.includes("déconnecté")) { addSystemMessage("Impossible d'envoyer (adversaire déconnecté)."); return; } if (msg) { ws.send(JSON.stringify({ type: 'send_message', gameId, message: msg })); chatInput.value = ''; chatInput.focus();} }
+        function displayChatMessage(data) { const {senderSymbol, message}=data; const el=document.createElement('div'); el.classList.add('chat-message'); const sender=document.createElement('span'); sender.classList.add('sender'); if(senderSymbol===playerSymbol){el.classList.add('my-message');} else {el.classList.add('opponent-message'); sender.textContent=`${senderSymbol}:`; sender.classList.add(senderSymbol==='R'?'player-R':'player-J'); el.appendChild(sender);} const text=document.createTextNode(` ${message}`); el.appendChild(text); chatMessagesDiv.appendChild(el); scrollToBottom(chatMessagesDiv); }
+        function addSystemMessage(message) { const el=document.createElement('div'); el.classList.add('chat-message','system-message'); el.textContent=message; chatMessagesDiv.appendChild(el); scrollToBottom(chatMessagesDiv); }
         function scrollToBottom(element) { element.scrollTop = element.scrollHeight; }
         function setChatEnabled(enabled) { chatInput.disabled = !enabled; sendChatMessageButton.disabled = !enabled; if (!enabled && document.activeElement === chatInput) chatInput.blur(); }
 
@@ -707,6 +728,7 @@
             connectionContainer.style.display = 'none';
             appContainer.style.display = 'flex';
             gameContainer.style.display = 'block';
+             gameContainer.classList.remove('looser-animation'); // Clean up looser animation
             chatContainer.style.display = 'flex';
             statusMessage.textContent = '';
             statusMessage.style.color = 'var(--text-light)';
@@ -733,7 +755,6 @@
             console.log("Handling game_created for P4", data);
             resetUIBeforeGame(false);
             gameId = data.gameId;
-            // Player symbol determined by server ('R' or 'J')
             playerSymbol = data.game.playerSymbols[clientId];
             gameIdDisplay.textContent = gameId;
             playerSymbolDisplay.textContent = playerSymbol;
@@ -760,70 +781,70 @@
             } else { console.error("Cannot determine P4 symbol!"); playerSymbolDisplay.textContent = '?'; }
 
             gameIdDisplay.textContent = gameId;
-            updateGameBoard(data.game); // Update board and turn
+            updateGameBoard(data.game); // Initial board state and turn info
 
             if (!isReplay) { addSystemMessage("L'adversaire a rejoint ! La partie commence."); }
             chatInput.focus();
             setChatEnabled(true);
         }
 
+        // --- UPDATE GAME BOARD WITH ANIMATION LOGIC ---
         function updateGameBoard(game) {
             console.log("Updating P4 game board", game);
-            if (!cells.length) initializeBoard(); // Safety check
+            if (!cells.length) initializeBoard();
 
-            // Clear previous winner highlights and dropped animations
-            cells.forEach(cell => {
-                 cell.classList.remove('winner-animation', 'dropped');
-                 // Update cell content based on board state
-                 const index = parseInt(cell.dataset.index);
-                 const cellOwner = game.board[index]; // 'R', 'J', or null
-                 cell.classList.remove('player-R', 'player-J'); // Clear previous owner
-                 if (cellOwner) {
-                     cell.classList.add(cellOwner === 'R' ? 'player-R' : 'player-J');
-                     // Add 'dropped' class if it just appeared (needs state comparison or server signal)
-                     // Simplification: just update color for now. Animation needs more logic.
-                 }
+            const previousBoardState = cells.map(cell => {
+                if (cell.classList.contains('player-R')) return 'R';
+                if (cell.classList.contains('player-J')) return 'J';
+                return null;
+            });
+
+            cells.forEach((cell, index) => {
+                const newOwner = game.board[index];
+                const previousOwner = previousBoardState[index];
+
+                // Reset classes first
+                cell.classList.remove('winner-animation', 'animate-drop', 'player-R', 'player-J');
+
+                if (newOwner) {
+                    // Add player class for color
+                    cell.classList.add(newOwner === 'R' ? 'player-R' : 'player-J');
+
+                    // Trigger animation if the cell was previously empty
+                    if (previousOwner === null) {
+                        cell.classList.add('animate-drop');
+                        // Optionally remove class after animation duration (CSS `forwards` should handle the visual state)
+                         // setTimeout(() => cell.classList.remove('animate-drop'), 500); // 500ms matches animation duration
+                    }
+                }
             });
 
             // Update turn indicator
-            currentTurnDisplay.textContent = game.currentTurn; // Should be 'R' or 'J'
+            currentTurnDisplay.textContent = game.currentTurn;
             currentTurnDisplay.className = game.currentTurn === 'R' ? 'player-R' : 'player-J';
 
-            // Update status message and turn logic
+            // Update game status message and turn logic
             isMyTurn = (game.status === 'playing' && game.currentTurn === playerSymbol);
             isGameOver = (game.status === 'finished' || game.status === 'aborted');
 
+             // Handle drop zones and chat state based on game status
             if (game.status === 'playing') {
                 statusMessage.textContent = isMyTurn ? 'C\'est votre tour !' : 'Tour de l\'adversaire...';
                 statusMessage.style.color = isMyTurn ? 'var(--success-color)' : 'var(--text-light)';
-                enableDropZones(); // Enables/disables based on isMyTurn
+                enableDropZones(game.board); // Pass current board to check full columns
                 setChatEnabled(true);
-
-                // Mark full columns as disabled
-                 dropZones.forEach((dz, colIndex) => {
-                    // Check if the top cell of the column (row 0) is filled
-                    const topCellIndex = colIndex; // Index = row * cols + col => 0 * 7 + col
-                    if (game.board[topCellIndex] !== null) {
-                        dz.classList.add('disabled', 'full'); // Mark as full and disabled
-                         dz.classList.remove('my-turn-hover');
-                    } else if (isMyTurn) { // If not full and my turn, ensure enabled
-                        dz.classList.remove('disabled', 'full');
-                        dz.classList.add('my-turn-hover');
-                    } else { // Not my turn, ensure disabled but maybe not 'full'
-                         dz.classList.remove('my-turn-hover');
-                         dz.classList.add('disabled');
-                         // Keep 'full' class if it was already there
-                    }
-                });
-
             } else if (game.status === 'waiting') {
                 statusMessage.textContent = 'En attente d\'un adversaire...';
                 disableDropZones();
                 setChatEnabled(true);
             } else if (game.status === 'finished') {
-                // Status set by handleGameOver
+                // Status message is set by handleGameOver
                 disableDropZones();
-                setChatEnabled(true); // Allow chat after game
+                setChatEnabled(true); // Keep chat enabled
+                // Highlight winning line *after* board update
+                if (game.winner && game.winningLine) {
+                    highlightWinningCells(game.winningLine);
+                }
             } else if (game.status === 'aborted') {
                  statusMessage.textContent = 'Partie interrompue.';
                  statusMessage.style.color = 'orange';
@@ -831,21 +852,23 @@
                  setChatEnabled(false);
             }
         }
+        // --- END UPDATE GAME BOARD ---
+
 
         function handleGameOver(data) {
             console.log("Handling P4 game_over", data);
-            updateGameBoard(data.game); // Show final board
+            updateGameBoard(data.game); // Update board to final state (will also call highlight)
             disableDropZones();
             isGameOver = true;
 
-            const winner = data.winner; // 'R', 'J', or null
+            const winner = data.winner;
             overlayMessage.className = '';
             overlayMessage.classList.add('visible');
 
             let endMessage = "";
 
             if (winner) {
-                 highlightWinningCells(data.winningLine); // Highlight the winning line
+                // Highlight is handled by updateGameBoard when status becomes 'finished'
                 if (winner === playerSymbol) {
                     statusMessage.textContent = '🎉 Vous avez gagné ! 🎉';
                     overlayMessage.textContent = 'VICTOIRE !';
@@ -857,14 +880,14 @@
                     overlayMessage.textContent = 'PERDU !';
                     overlayMessage.classList.add('lose');
                     endMessage = `Joueur ${winner} a gagné.`;
-                    // Optional: Add a losing animation/effect
+                    gameContainer.classList.add('looser-animation');
+                    setTimeout(()=> gameContainer.classList.remove('looser-animation'), 2500);
                 }
             } else { // Draw
                 statusMessage.textContent = '😐 Match nul ! 😐';
                 overlayMessage.textContent = 'MATCH NUL';
                 overlayMessage.classList.add('draw');
                 endMessage = "Match nul !";
-                 // Optional: Add draw animation/effect
             }
 
             addSystemMessage(`Fin de la partie. ${endMessage}`);
@@ -900,7 +923,7 @@
 
 
         // --- Animation and Utility Functions ---
-        function runWinnerConfetti() { /* ... (Identique à morpion.html) ... */ const duration = 3 * 1000; const animationEnd = Date.now() + duration; const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 1001 }; function randomInRange(min, max) { return Math.random() * (max - min) + min; } const interval = setInterval(function() { const timeLeft = animationEnd - Date.now(); if (timeLeft <= 0) return clearInterval(interval); const particleCount = 50 * (timeLeft / duration); confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } })); confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } })); }, 250); }
+        function runWinnerConfetti() { const duration = 3 * 1000; const animationEnd = Date.now() + duration; const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 1001 }; function randomInRange(min, max) { return Math.random() * (max - min) + min; } const interval = setInterval(function() { const timeLeft = animationEnd - Date.now(); if (timeLeft <= 0) return clearInterval(interval); const particleCount = 50 * (timeLeft / duration); confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } })); confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } })); }, 250); }
 
         function highlightWinningCells(winningLine) {
              if (!winningLine || !Array.isArray(winningLine)) {
@@ -908,8 +931,8 @@
                  return;
              }
              console.log("Highlighting winning cells:", winningLine);
-             // Clear previous highlights first
-             cells.forEach(cell => cell.classList.remove('winner-animation'));
+             // Clear previous highlights first (already done in updateGameBoard reset)
+             // cells.forEach(cell => cell.classList.remove('winner-animation'));
              // Add highlight to the winning cells
              winningLine.forEach(index => {
                  if (cells[index]) {
@@ -923,11 +946,11 @@
         // --- Event Listeners Setup ---
          createGameButton.addEventListener('click', (event) => {
              if (ws && ws.readyState === WebSocket.OPEN) {
-                 const gameType = event.target.dataset.gametype || 'puissance4'; // Get game type
+                 const gameType = event.target.dataset.gametype || 'puissance4';
                  console.log(`Requesting to create game of type: ${gameType}`);
                  createGameButton.disabled = true;
                  joinGameButton.disabled = true;
-                 ws.send(JSON.stringify({ type: 'create_game', gameType: gameType })); // Send type
+                 ws.send(JSON.stringify({ type: 'create_game', gameType: gameType }));
              } else { alert("Non connecté au serveur."); }
         });
 
@@ -958,7 +981,7 @@
 
         // --- Initial Setup ---
         initializeBoard(); // Setup P4 board structure
-        connectWebSocket(); // Start connection
+        connectWebSocket(); // Start the connection process
 
     </script>
 
