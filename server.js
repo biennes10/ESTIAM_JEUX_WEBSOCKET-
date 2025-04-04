@@ -229,7 +229,7 @@ function generateGameId() {
 }
 
 // Démarrer le serveur
-const PORT = process.env.PORT || 3000;
+const PORT = 1111;
 server.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`);
 });
