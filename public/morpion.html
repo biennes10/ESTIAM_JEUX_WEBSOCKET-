@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Morpion WebSocket</title>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+    
+    #game-container {
+      margin-top: 20px;
+    }
+    
+    #game-board {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      grid-template-rows: repeat(3, 100px);
+      gap: 5px;
+      margin-top: 20px;
+    }
+    
+    .cell {
+      width: 100px;
+      height: 100px;
+      background-color: #f0f0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 40px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .cell:hover {
+      background-color: #e0e0e0;
+    }
+    
+    .game-info {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    
+    #status-message {
+      margin-top: 15px;
+      font-weight: bold;
+      color: #333;
+      font-size: 24px;
+      text-align: center;
+    }
+    
+    .player-x {
+      color: blue;
+    }
+    
+    .player-o {
+      color: red;
+    }
+    
+    @keyframes winner-glow {
+      0% { box-shadow: 0 0 5px gold; }
+      50% { box-shadow: 0 0 20px gold, 0 0 30px gold; }
+      100% { box-shadow: 0 0 5px gold; }
+    }
+    
+    .winner-animation {
+      animation: winner-glow 2s infinite;
+    }
+    
+    @keyframes looser-shake {
+      0% { transform: translateX(0); }
+      10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+      20%, 40%, 60%, 80% { transform: translateX(10px); }
+      100% { transform: translateX(0); }
+    }
+    
+    .looser-animation {
+      animation: looser-shake 0.8s cubic-bezier(.36,.07,.19,.97) both;
+      animation-iteration-count: 3;
+      background-color: rgba(255, 0, 0, 0.1);
+    }
+    
+    @keyframes draw-wave {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.7; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    
+    .draw-animation {
+      animation: draw-wave 1.5s ease-in-out;
+      animation-iteration-count: 3;
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(0, 0, 255, 0.1),
+        rgba(0, 0, 255, 0.1) 10px,
+        rgba(255, 0, 0, 0.1) 10px,
+        rgba(255, 0, 0, 0.1) 20px
+      );
+    }
+    
+    #overlay-message {
+      position: fixed;
+      top: 30%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 80px;
+      font-weight: bold;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      z-index: 100;
+      text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.6);
+    }
+    
+    #overlay-message.win {
+      color: gold;
+      opacity: 1;
+    }
+    
+    #overlay-message.lose {
+      color: red;
+      opacity: 1;
+    }
+    
+    #overlay-message.draw {
+      background: linear-gradient(to right, blue, red);
+      -webkit-background-clip: text;
+      color: transparent;
+      opacity: 1;
+      font-size: 70px;
+    }
+    
+    button {
+      padding: 12px 20px;
+      margin: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2);
+      transition: all 0.3s ease;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    button:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 3px rgba(0, 0, 0, 0.2);
+    }
+    
+    #create-game {
+      background-color: #2196F3;
+    }
+    
+    #create-game:hover {
+      background-color: #0b7dda;
+    }
+    
+    #join-game {
+      background-color: #ff9800;
+    }
+    
+    #join-game:hover {
+      background-color: #e68a00;
+    }
+    
+    #game-id-input {
+      padding: 12px;
+      font-size: 16px;
+      border: 2px solid #ddd;
+      border-radius: 5px;
+      margin-right: 5px;
+      transition: border-color 0.3s ease;
+    }
+    
+    #game-id-input:focus {
+      border-color: #ff9800;
+      outline: none;
+      box-shadow: 0 0 5px rgba(255, 152, 0, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <h1>Morpion Multijoueur</h1>
+  
+  <div id="connection-container" style="text-align: center;">
+    <button id="create-game">Créer une partie</button>
+    <div id="join-form" style="display: none; margin-top: 15px;">
+      <input type="text" id="game-id-input" placeholder="Code de la partie">
+      <button id="join-game">Rejoindre</button>
+    </div>
+  </div>
+  
+  <div id="game-container" style="display: none;">
+    <div class="game-info">
+      <h2>Partie: <span id="game-id-display"></span></h2>
+      <div id="player-info">Vous êtes: <span id="player-symbol"></span></div>
+      <div id="turn-info">Tour: <span id="current-turn"></span></div>
+    </div>
+    
+    <div id="game-board"></div>
+    
+    <div id="status-message"></div>
+  </div>
+  
+  <div id="overlay-message"></div>
+
+  <script>
+    // Établir la connexion WebSocket
+    const ws = new WebSocket(`ws://${window.location.host}`);
+    let clientId = null;
+    let gameId = null;
+    let playerSymbol = null;
+    
+    // Initialiser le plateau de jeu
+    const gameBoard = document.getElementById('game-board');
+    for (let i = 0; i < 9; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.index = i;
+      cell.addEventListener('click', handleCellClick);
+      gameBoard.appendChild(cell);
+    }
+    
+    // Gestionnaires d'événements pour les boutons
+    document.getElementById('create-game').addEventListener('click', createGame);
+    document.getElementById('join-game').addEventListener('click', joinGame);
+    
+    // Gestionnaire des messages WebSocket
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log('Message reçu:', data);
+      
+      switch (data.type) {
+        case 'connected':
+          clientId = data.clientId;
+          document.getElementById('join-form').style.display = 'block';
+          break;
+        
+        case 'game_created':
+          handleGameCreated(data);
+          break;
+        
+        case 'game_started':
+          handleGameStarted(data);
+          break;
+        
+        case 'move_made':
+          updateGameBoard(data.game);
+          break;
+        
+        case 'game_over':
+          handleGameOver(data);
+          break;
+        
+        case 'error':
+          alert(data.message);
+          break;
+      }
+    };
+    
+    function createGame() {
+      ws.send(JSON.stringify({
+        type: 'create_game'
+      }));
+    }
+    
+    function joinGame() {
+      const gameIdInput = document.getElementById('game-id-input').value.trim();
+      if (!gameIdInput) {
+        alert('Veuillez entrer un code de partie valide');
+        return;
+      }
+      
+      ws.send(JSON.stringify({
+        type: 'join_game',
+        gameId: gameIdInput
+      }));
+    }
+    
+    function handleCellClick(event) {
+      const position = parseInt(event.target.dataset.index);
+      
+      // S'assurer que la cellule est vide
+      if (event.target.textContent !== '') return;
+      
+      ws.send(JSON.stringify({
+        type: 'make_move',
+        gameId,
+        position
+      }));
+    }
+    
+    function handleGameCreated(data) {
+      gameId = data.gameId;
+      playerSymbol = 'X';
+      
+      document.getElementById('connection-container').style.display = 'none';
+      document.getElementById('game-container').style.display = 'block';
+      document.getElementById('game-id-display').textContent = gameId;
+      document.getElementById('player-symbol').textContent = 'X';
+      document.getElementById('player-symbol').className = 'player-x';
+      document.getElementById('status-message').textContent = 'En attente d\'un autre joueur...';
+      document.getElementById('current-turn').textContent = '';
+    }
+    
+    function handleGameStarted(data) {
+      gameId = data.game.id;
+      
+      if (!playerSymbol) {
+        playerSymbol = 'O';
+        document.getElementById('player-symbol').textContent = 'O';
+        document.getElementById('player-symbol').className = 'player-o';
+        document.getElementById('connection-container').style.display = 'none';
+        document.getElementById('game-container').style.display = 'block';
+        document.getElementById('game-id-display').textContent = data.game.id;
+      }
+      
+      document.getElementById('status-message').textContent = 'La partie a commencé!';
+      updateGameBoard(data.game);
+    }
+    
+    function updateGameBoard(game) {
+      const cells = document.querySelectorAll('.cell');
+      
+      // Mettre à jour les cellules
+      for (let i = 0; i < 9; i++) {
+        cells[i].textContent = game.board[i] || '';
+        
+        // Réinitialiser la classe
+        cells[i].className = 'cell';
+        
+        if (game.board[i] === 'X') {
+          cells[i].classList.add('player-x');
+        } else if (game.board[i] === 'O') {
+          cells[i].classList.add('player-o');
+        }
+      }
+      
+      // Mettre à jour l'information de tour
+      const turnDisplay = document.getElementById('current-turn');
+      turnDisplay.textContent = game.currentTurn;
+      turnDisplay.className = game.currentTurn === 'X' ? 'player-x' : 'player-o';
+      
+      // Mettre à jour le message de statut
+      const statusMessage = document.getElementById('status-message');
+      if (game.status === 'playing') {
+        if (game.currentTurn === playerSymbol) {
+          statusMessage.textContent = 'C\'est votre tour!';
+        } else {
+          statusMessage.textContent = 'En attente de l\'adversaire...';
+        }
+      }
+    }
+    
+    function handleGameOver(data) {
+      updateGameBoard(data.game);
+      
+      const statusMessage = document.getElementById('status-message');
+      const overlayMessage = document.getElementById('overlay-message');
+      const cells = document.querySelectorAll('.cell');
+      
+      if (data.winner) {
+        if (data.winner === playerSymbol) {
+          // Victoire
+          statusMessage.textContent = 'Vous avez gagné!';
+          overlayMessage.textContent = 'VICTOIRE!';
+          overlayMessage.className = 'win';
+          
+          // Animation confetti
+          runWinnerConfetti();
+          
+          // Animation des cellules gagnantes
+          highlightWinningCells(data.game.board);
+        } else {
+          // Défaite
+          statusMessage.textContent = 'Vous avez perdu!';
+          overlayMessage.textContent = 'PERDU!';
+          overlayMessage.className = 'lose';
+          
+          // Animation défaite
+          gameBoard.classList.add('looser-animation');
+          setTimeout(() => {
+            gameBoard.classList.remove('looser-animation');
+          }, 2500);
+        }
+      } else {
+        // Match nul
+        statusMessage.textContent = 'Match nul!';
+        overlayMessage.textContent = 'MATCH NUL!';
+        overlayMessage.className = 'draw';
+        
+        // Animation match nul
+        gameBoard.classList.add('draw-animation');
+        
+        // Effet spécial pour match nul - faire clignoter les cases alternativement
+        cells.forEach((cell, index) => {
+          setTimeout(() => {
+            cell.classList.add('draw-animation');
+            setTimeout(() => {
+              cell.classList.remove('draw-animation');
+            }, 1500);
+          }, index * 100);
+        });
+        
+        setTimeout(() => {
+          gameBoard.classList.remove('draw-animation');
+        }, 4500);
+      }
+      
+      // Masquer le message après quelques secondes
+      setTimeout(() => {
+        overlayMessage.style.opacity = 0;
+      }, 3000);
+      
+      // Désactiver les clics sur les cellules
+      cells.forEach(cell => {
+        cell.removeEventListener('click', handleCellClick);
+        cell.style.cursor = 'default';
+      });
+    }
+    
+    function runWinnerConfetti() {
+      // Lancer des confettis
+      const duration = 3000;
+      const animationEnd = Date.now() + duration;
+      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+      
+      function randomInRange(min, max) {
+        return Math.random() * (max - min) + min;
+      }
+      
+      const interval = setInterval(function() {
+        const timeLeft = animationEnd - Date.now();
+        
+        if (timeLeft <= 0) {
+          return clearInterval(interval);
+        }
+        
+        const particleCount = 50 * (timeLeft / duration);
+        
+        // Confettis de chaque côté
+        confetti(Object.assign({}, defaults, {
+          particleCount,
+          origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+        }));
+        confetti(Object.assign({}, defaults, {
+          particleCount,
+          origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+        }));
+      }, 250);
+    }
+    
+    function highlightWinningCells(board) {
+      const winPatterns = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8], // lignes
+        [0, 3, 6], [1, 4, 7], [2, 5, 8], // colonnes
+        [0, 4, 8], [2, 4, 6]             // diagonales
+      ];
+      
+      const cells = document.querySelectorAll('.cell');
+      
+      for (const pattern of winPatterns) {
+        const [a, b, c] = pattern;
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+          // Trouvé le pattern gagnant
+          cells[a].classList.add('winner-animation');
+          cells[b].classList.add('winner-animation');
+          cells[c].classList.add('winner-animation');
+          break;
+        }
+      }
+    }
+  </script>
+</body>
+</html>

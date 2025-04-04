@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sélection de Jeux</title>
+    <link rel="stylesheet" href="style_index.css"> <!-- Lien vers le fichier CSS -->
+</head>
+<style>
+    body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* Style de la barre de navigation */
+.main-nav {
+    background-color: #333;
+    padding: 10px 0;
+    width: 100%;
+}
+
+.main-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    text-align: center; /* Centre les éléments */
+}
+
+.main-nav li {
+    display: inline-block; /* Met les éléments sur la même ligne */
+    margin: 0 15px;
+}
+
+.main-nav a {
+    color: white;
+    text-decoration: none;
+    font-size: 18px;
+    padding: 10px 15px;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+}
+
+.main-nav a:hover,
+.main-nav a.active { /* Style pour le lien actif ou au survol */
+    background-color: #555;
+}
+
+/* Conteneur principal pour la sélection des jeux */
+.game-selection-container {
+    padding: 30px;
+    text-align: center;
+    flex-grow: 1; /* Fait en sorte que le main prenne l'espace restant */
+}
+
+.game-selection-container h1 {
+    color: #333;
+    margin-bottom: 40px;
+}
+
+/* Conteneur pour la liste des cartes de jeu */
+.game-list {
+    display: flex;
+    flex-wrap: wrap; /* Permet aux cartes de passer à la ligne */
+    justify-content: center; /* Centre les cartes horizontalement */
+    gap: 30px; /* Espace entre les cartes */
+}
+
+/* Style des cartes de jeu */
+.game-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 25px;
+    width: 280px; /* Largeur fixe pour les cartes */
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between; /* Espace les éléments verticalement */
+}
+
+.game-card:hover {
+    transform: translateY(-5px); /* Léger effet de soulèvement */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.game-card img {
+    max-width: 100px; /* Limite la taille de l'icône */
+    height: auto;
+    margin: 0 auto 15px auto; /* Centre l'image et ajoute de l'espace en dessous */
+    display: block;
+}
+
+.game-card h2 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #444;
+    font-size: 1.4em;
+}
+
+.game-card p {
+    font-size: 0.95em;
+    color: #666;
+    flex-grow: 1; /* Permet au paragraphe de prendre l'espace */
+    margin-bottom: 20px;
+}
+
+/* Style du bouton "Jouer" */
+.play-button {
+    display: inline-block;
+    background-color: #4CAF50; /* Vert */
+    color: white;
+    padding: 12px 25px;
+    text-align: center;
+    text-decoration: none;
+    font-size: 16px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-weight: bold;
+    align-self: center; /* Centre le bouton horizontalement dans la flex column */
+}
+
+.play-button:hover {
+    background-color: #45a049; /* Vert plus foncé au survol */
+}
+
+.play-button.disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.play-button.disabled:hover {
+    background-color: #bbb;
+}
+</style>
+<body>
+
+    <nav class="main-nav">
+        <ul>
+            <li><a href="index.html">Jeux</a></li>
+            <!-- Vous pourrez ajouter d'autres liens ici plus tard -->
+        </ul>
+    </nav>
+
+    <main class="game-selection-container">
+        <h1>Choisissez un jeu</h1>
+
+        <div class="game-list">
+            <!-- Cadre pour le jeu Morpion -->
+            <div class="game-card">
+                <img src="images/morpion-icon.png" alt="Icône du jeu Morpion"> <!-- Mettez le bon chemin vers votre image -->
+                <h2>Morpion Multijoueur</h2>
+                <p>Défiez un ami au jeu classique du Morpion en temps réel.</p>
+                <a href="morpion.html" class="play-button">Jouer</a>
+            </div>
+
+            <!-- Vous pourrez ajouter d'autres cadres pour d'autres jeux ici -->
+            <!-- Exemple:
+            <div class="game-card">
+                <img src="images/autrejeu-icon.png" alt="Icône autre jeu">
+                <h2>Autre Jeu</h2>
+                <p>Description de l'autre jeu.</p>
+                <a href="autrejeu.html" class="play-button disabled">Bientôt disponible</a>
+            </div>
+             -->
+        </div>
+    </main>
+
+</body>
+</html>
+
