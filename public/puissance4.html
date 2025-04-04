@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puissance 4 Multijoueur</title>
+    <link rel="icon" type="image/png" href="images/puissance4-icon.png" sizes="16x16">
+    <!-- Confetti pour la victoire -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        /* --- Base Styles (similar to morpion) --- */
+        :root {
+            /* Game dimensions - UPDATED FOR SMALLER SIZE */
+            --p4-columns: 7;
+            --p4-rows: 6;
+            --p4-cell-size: 55px; /* UPDATED: Smaller cell size for mobile */
+            --p4-gap: 3px;       /* UPDATED: Slightly smaller gap */
+            /* Auto-calculated dimensions */
+            --p4-board-width: calc(var(--p4-columns) * (var(--p4-cell-size) + var(--p4-gap)) - var(--p4-gap));
+            --p4-board-height: calc(var(--p4-rows) * (var(--p4-cell-size) + var(--p4-gap)) - var(--p4-gap));
+            --p4-drop-zone-height: 45px; /* UPDATED: Slightly smaller drop zone */
+    
+            /* Colors */
+            --border-color: #ccc;
+            --background-light: #f4f4f4; /* Light grey background */
+            --background-white: #fff;
+            --text-dark: #333;
+            --text-light: #555;
+            --p4-board-bg: #007bff; /* Blue board */
+            --p4-cell-empty-bg: #f8f9fa; /* Very light grey for empty slots */
+            --p4-player-r-color: #dc3545; /* Red */
+            --p4-player-j-color: #ffc107; /* Yellow */
+            --accent-color: var(--p4-player-j-color); /* Yellow for highlights */
+            --success-color: #28a745; /* Green */
+            --error-color: #dc3545; /* Red */
+            --chat-input-bg: #eee;
+            --chat-my-message-bg: #dcf8c6;
+            --chat-opponent-message-bg: #e9e9eb;
+        }
+    
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 10px;
+          margin: 0;
+          min-height: 100vh;
+          box-sizing: border-box;
+          background-color: var(--background-light);
+          color: var(--text-dark);
+          font-size: 16px;
+        }
+    
+        h1 {
+          margin-top: 0;
+          margin-bottom: 15px;
+          color: var(--text-dark);
+          text-align: center;
+        }
+    
+        #connection-status {
+          margin-bottom: 15px;
+          font-style: italic;
+          color: var(--text-light);
+          min-height: 1.2em;
+          text-align: center;
+        }
+    
+    
+        #connection-container,
+        #app-container {
+          width: 100%;
+          max-width: 960px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+    
+        #connection-container {
+            text-align: center;
+            /* display: none; Caché/affiché via JS */
+        }
+         #join-form {
+             margin-top: 15px;
+             display: flex;
+             justify-content: center;
+             align-items: center;
+             flex-wrap: wrap; /* Pour petits écrans */
+             gap: 8px;
+         }
+    
+        /* Conteneur principal jeu + chat */
+        #app-container {
+          /* display: none; Caché/affiché via JS */
+          margin-top: 15px;
+          /* Mobile first: chat en bas par défaut */
+        }
+    
+    
+        #game-container {
+          text-align: center;
+          width: 100%;
+          /* Max width will be determined by board size (auto-calculated) */
+          max-width: var(--p4-board-width);
+          order: 1;
+          margin-bottom: 20px;
+        }
+    
+        /* ---- Puissance 4 Specific Board Styles ---- */
+        #p4-drop-zone-container {
+            display: grid;
+            grid-template-columns: repeat(var(--p4-columns), var(--p4-cell-size));
+            gap: var(--p4-gap);
+            width: var(--p4-board-width);
+            margin: 0 auto 5px auto; /* Space below drop zones */
+            height: var(--p4-drop-zone-height);
+        }
+    
+        .p4-drop-zone {
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 1px dashed var(--border-color);
+            border-radius: 5px 5px 0 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: calc(var(--p4-drop-zone-height) * 0.5); /* Arrow size relative */
+            color: rgba(0, 0, 0, 0.3);
+        }
+        .p4-drop-zone:hover {
+            background-color: rgba(255, 255, 255, 0.4);
+        }
+         /* Style when it's the player's turn */
+         .p4-drop-zone.my-turn-hover:hover {
+             background-color: lightgreen;
+             border-color: var(--success-color);
+         }
+        .p4-drop-zone.disabled {
+            cursor: not-allowed;
+            background-color: rgba(150, 150, 150, 0.1);
+        }
+         .p4-drop-zone.disabled:hover {
+             background-color: rgba(150, 150, 150, 0.1);
+         }
+    
+    
+        #p4-board {
+          display: grid;
+          grid-template-columns: repeat(var(--p4-columns), var(--p4-cell-size));
+          grid-template-rows: repeat(var(--p4-rows), var(--p4-cell-size));
+          gap: var(--p4-gap);
+          margin: 0 auto 20px auto; /* Centered below drop zones */
+          width: var(--p4-board-width);
+          height: var(--p4-board-height);
+          border: 3px solid #444; /* Thicker border */
+          border-radius: 10px; /* Rounded board */
+          background-color: var(--p4-board-bg); /* Blue board background */
+          padding: var(--p4-gap); /* Inner padding to see board color */
+          box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+          position: relative; /* For potential animations */
+        }
+    
+        .p4-cell {
+          width: var(--p4-cell-size);
+          height: var(--p4-cell-size);
+          background-color: var(--p4-cell-empty-bg); /* Background for the hole */
+          border-radius: 50%; /* Make it a circle */
+          box-sizing: border-box;
+          display: flex; /* To center piece if needed */
+          justify-content: center;
+          align-items: center;
+          position: relative; /* For the piece pseudo-element */
+        }
+    
+        /* Style for the piece itself (using ::after pseudo-element) */
+        .p4-cell::after {
+            content: '';
+            display: block;
+            width: 85%; /* Slightly smaller than the cell */
+            height: 85%;
+            border-radius: 50%;
+            background-color: transparent; /* Empty by default */
+            transition: background-color 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth transition */
+            position: absolute;
+            box-shadow: inset 0 -3px 5px rgba(0,0,0,0.2); /* Inner shadow for depth */
+        }
+    
+        .p4-cell.player-R::after { background-color: var(--p4-player-r-color); }
+        .p4-cell.player-J::after { background-color: var(--p4-player-j-color); }
+    
+         /* Add a subtle animation when a piece appears */
+        @keyframes dropPiece {
+            from { transform: translateY(-80px) scale(0.8); opacity: 0.5; } /* Adjust distance */
+            to   { transform: translateY(0) scale(1); opacity: 1; }
+        }
+         /* We'll apply this class briefly via JS */
+        .p4-cell.dropped::after {
+            animation: dropPiece 0.4s ease-out forwards;
+        }
+    
+        /* Highlighting winning pieces */
+        .p4-cell.winner-animation::after {
+            box-shadow: 0 0 8px 4px white, inset 0 -3px 5px rgba(0,0,0,0.2); /* White glow */
+        }
+        /* ---- End Puissance 4 Styles ---- */
+    
+    
+        .game-info { margin-bottom: 15px; line-height: 1.5; }
+        .game-info h2 { font-size: 1.1em; margin: 0 0 5px 0; }
+        .game-info span { font-weight: bold; }
+        /* Player symbols adapted for P4 */
+        #player-symbol.player-R { color: var(--p4-player-r-color); font-weight: bold; }
+        #player-symbol.player-J { color: var(--p4-player-j-color); font-weight: bold; }
+        #current-turn.player-R { color: var(--p4-player-r-color); font-weight: bold; }
+        #current-turn.player-J { color: var(--p4-player-j-color); font-weight: bold; }
+    
+    
+        #status-message {
+            margin-top: 15px;
+            font-weight: bold;
+            font-size: 1.2em;
+            min-height: 1.5em; /* Empêche sauts de layout */
+            color: var(--text-light);
+        }
+    
+    
+        /* Generic Animations (Keep if used for confetti/overlay) */
+        @keyframes winner-glow { /* Unused for P4 highlighting but maybe for something else */ }
+        @keyframes looser-shake {
+            0% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+            20%, 40%, 60%, 80% { transform: translateX(10px); }
+            100% { transform: translateX(0); }
+        }
+        #game-container.looser-animation { /* Apply to container for general shake */
+            animation: looser-shake 0.8s cubic-bezier(.36,.07,.19,.97) both 3;
+        }
+        @keyframes draw-pulse { /* Not really used for P4 */ }
+    
+    
+        /* Overlay Message (Keep as is) */
+        #overlay-message {
+          position: fixed;
+          top: 40%; left: 50%;
+          transform: translate(-50%, -50%) scale(0.8);
+          font-size: clamp(40px, 12vw, 90px); /* Taille responsive */
+          font-weight: bold;
+          opacity: 0;
+          transition: opacity 0.5s ease, transform 0.5s ease, visibility 0s linear 0.5s;
+          z-index: 1000;
+          text-shadow: 3px 3px 8px rgba(0, 0, 0, 0.5);
+          pointer-events: none;
+          visibility: hidden;
+          text-align: center;
+        }
+        #overlay-message.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
+            transition-delay: 0s, 0s, 0s;
+        }
+        #overlay-message.win { color: var(--accent-color); } /* Use accent color for win */
+        #overlay-message.lose { color: var(--error-color); }
+        #overlay-message.draw {
+          background: linear-gradient(to right, var(--p4-player-r-color), var(--p4-player-j-color)); /* R->J gradient */
+          -webkit-background-clip: text;
+          color: transparent;
+        }
+    
+        /* Buttons (Generic styles) */
+        button {
+          padding: 10px 18px;
+          margin: 5px;
+          font-size: 1em;
+          font-weight: 600;
+          cursor: pointer;
+          color: white;
+          border: none;
+          border-radius: 5px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          transition: all 0.2s ease;
+          background-color: var(--success-color); /* Default green */
+        }
+        button:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.25);
+          filter: brightness(1.1);
+        }
+        button:active:not(:disabled) {
+          transform: translateY(0px);
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        /* Specific button colors adjusted for P4 */
+        #create-game { background-color: var(--p4-player-r-color); } /* Red */
+        #join-game { background-color: var(--p4-player-j-color); color: var(--text-dark); } /* Yellow, dark text */
+        #replay-button { background-color: #673ab7; display: none;} /* Violet */
+        #send-chat-message { background-color: #128C7E; border-radius: 5px; min-width: 70px; } /* WhatsApp Green */
+    
+        /* Input (Generic styles) */
+        input[type="text"] {
+          padding: 10px;
+          font-size: 1em;
+          border: 2px solid var(--border-color);
+          border-radius: 5px;
+          transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        input[type="text"]:focus {
+          border-color: var(--accent-color);
+          outline: none;
+          box-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
+        }
+        #game-id-input { margin-right: 5px; }
+    
+        /* Replay Controls (Generic styles) */
+        #replay-controls { display: none; margin-top: 20px; }
+        #replay-info { margin-top: 10px; font-style: italic; color: var(--text-light); min-height: 1.2em; }
+    
+        /* Chat Styles (Generic) */
+        #chat-container {
+          border: 1px solid var(--border-color);
+          background-color: var(--background-light);
+          border-radius: 8px;
+          display: flex; /* Géré par JS */
+          flex-direction: column;
+          width: 100%;
+          max-width: var(--p4-board-width); /* Match game width on mobile */
+          height: 280px; /* Fixed height on mobile */
+          box-sizing: border-box;
+          order: 2; /* Chat après le jeu par défaut */
+          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+          /* display: none; Caché/affiché via JS */
+        }
+    
+        #chat-messages {
+          flex-grow: 1;
+          overflow-y: auto;
+          padding: 10px;
+          background-color: var(--background-white);
+          border-bottom: 1px solid #eee;
+          scroll-behavior: smooth; /* Défilement doux */
+        }
+    
+        .chat-message {
+          margin-bottom: 8px;
+          padding: 6px 10px;
+          border-radius: 12px; /* Plus arrondi */
+          line-height: 1.4;
+          word-wrap: break-word;
+          max-width: 85%; /* Limiter largeur message */
+          font-size: 0.95em;
+        }
+        .chat-message .sender { font-weight: bold; margin-right: 5px; }
+    
+        .chat-message.my-message {
+          background-color: var(--chat-my-message-bg);
+          margin-left: auto;
+          text-align: left; /* Garder texte aligné gauche */
+          border-bottom-right-radius: 4px; /* Petite variation */
+        }
+        .chat-message.my-message .sender { display: none; }
+    
+        .chat-message.opponent-message {
+          background-color: var(--chat-opponent-message-bg);
+          margin-right: auto;
+          text-align: left;
+          border-bottom-left-radius: 4px; /* Petite variation */
+        }
+         /* Chat sender colors adapted for P4 */
+         .chat-message.opponent-message .sender.player-R { color: var(--p4-player-r-color); }
+         .chat-message.opponent-message .sender.player-J { color: var(--p4-player-j-color); }
+    
+        .chat-message.system-message {
+            font-style: italic;
+            color: var(--text-light);
+            text-align: center;
+            background: none;
+            margin: 10px 0;
+            font-size: 0.9em;
+            max-width: 100%;
+        }
+    
+        /* Zone de saisie du chat - Défaut (Mobile) */
+        #chat-input-area {
+          display: flex;
+          flex-direction: column; /* Stack verticalement par défaut */
+          padding: 10px;
+          background-color: var(--chat-input-bg);
+          border-top: 1px solid #eee;
+          gap: 8px; /* Espace entre input et bouton */
+        }
+    
+        #chat-input {
+          flex-grow: 1; /* Prend la largeur dans ce layout */
+          padding: 10px 12px;
+          border: 1px solid var(--border-color);
+          border-radius: 18px; /* Input arrondi */
+          /* margin-right: 8px; /* Supprimé */
+          font-size: 1em;
+          background-color: var(--background-white);
+          box-sizing: border-box;
+          width: 100%; /* Prend toute la largeur */
+        }
+        #chat-input:disabled { background-color: #f0f0f0; cursor: not-allowed; }
+    
+        #send-chat-message {
+          /* Le bouton prend sa largeur naturelle ou définissez une largeur si besoin */
+           padding: 10px 18px; /* Ajustez si nécessaire */
+           /* align-self: center; /* Décommentez pour centrer */
+        }
+    
+    
+        /* Desktop Layout */
+        @media (min-width: 768px) {
+           :root {
+                /* UPDATED: Slightly larger cells for desktop */
+                --p4-cell-size: 65px;
+                --p4-drop-zone-height: 50px; /* Adjust drop zone height too */
+            }
+    
+          #app-container {
+            flex-direction: row; /* Jeu à gauche, chat à droite */
+            align-items: flex-start; /* Aligner en haut */
+            justify-content: center; /* Centrer les deux blocs */
+            gap: 30px; /* Plus d'espace entre jeu et chat */
+          }
+    
+          #game-container {
+            order: 1;
+            width: auto; /* Taille basée sur contenu */
+            max-width: none;
+            margin-bottom: 0; /* Pas de marge en bas si à côté */
+          }
+    
+          #chat-container {
+            order: 2;
+            margin-top: 0;
+            width: 320px; /* Largeur fixe pour le chat */
+             /* Calculate height based on recalculated board + drop zone + info */
+            height: calc(var(--p4-board-height) + var(--p4-drop-zone-height) + 100px); /* Adjust constant as needed */
+            max-width: none;
+            flex-shrink: 0; /* Empêcher le chat de rétrécir */
+          }
+    
+          /* Zone de saisie du chat - Override pour Desktop */
+          #chat-input-area {
+            flex-direction: row; /* Remettre en ligne */
+            align-items: center; /* Bien aligner verticalement */
+            gap: 8px; /* Espace horizontal */
+             padding: 8px; /* Retour au padding original si désiré */
+          }
+    
+          #chat-input {
+              /* flex-grow: 1; est déjà défini */
+              width: auto; /* Laisser flexbox gérer la largeur */
+              /* margin-right: 8px; /* Optionnel, gap gère l'espace */
+          }
+    
+          #send-chat-message {
+               /* Pas besoin de align-self ici */
+               /* Le padding peut rester le même ou être ajusté */
+          }
+        }
+    
+         @media (min-width: 1024px) {
+             :root {
+                 /* UPDATED: Larger cells for large desktop */
+                 --p4-cell-size: 70px;
+                 --p4-drop-zone-height: 55px;
+             }
+             #chat-container {
+                 width: 350px;
+                  /* Recalculate height */
+                 height: calc(var(--p4-board-height) + var(--p4-drop-zone-height) + 110px); /* Adjust constant as needed */
+             }
+         }
+    </style>
+</head>
+<body>
+    <h1>Puissance 4 Multijoueur</h1>
+
+    <div id="connection-status">Connexion...</div>
+
+    <div id="connection-container" style="display: none;">
+        <!-- Pass gameType when creating -->
+        <button id="create-game" data-gametype="puissance4">Créer une partie Puissance 4</button>
+        <div id="join-form">
+        <input type="text" id="game-id-input" placeholder="Code de la partie">
+        <!-- Pass gameType when joining? Server can infer from gameId -->
+        <button id="join-game">Rejoindre</button>
+        </div>
+    </div>
+
+    <!-- Conteneur principal pour le jeu et le chat -->
+    <div id="app-container" style="display: none;">
+
+        <div id="game-container">
+            <div class="game-info">
+                <h2>Partie : <span id="game-id-display"></span></h2>
+                <div>Vous êtes Joueur : <span id="player-symbol"></span></div>
+                <div>Tour : Joueur <span id="current-turn"></span></div>
+            </div>
+
+            <!-- Zone pour cliquer et déposer les jetons -->
+            <div id="p4-drop-zone-container">
+                <!-- Drop zones générées par JS -->
+            </div>
+
+            <!-- Grille du Puissance 4 -->
+            <div id="p4-board">
+                <!-- Cellules générées par JS -->
+            </div>
+
+            <div id="status-message"></div>
+            <div id="replay-controls">
+                <button id="replay-button">Rejouer</button>
+                <div id="replay-info"></div>
+            </div>
+        </div>
+
+        <!-- Conteneur du Chat -->
+        <div id="chat-container" style="display: none;">
+            <div id="chat-messages"></div>
+            <div id="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Votre message..." autocomplete="off" disabled>
+                <button id="send-chat-message" disabled>Envoyer</button>
+            </div>
+        </div>
+
+    </div> <!-- Fin app-container -->
+
+    <div id="overlay-message"></div>
+
+    <script>
+        // --- DOM Element References ---
+        const connectionStatusDiv = document.getElementById('connection-status');
+        const connectionContainer = document.getElementById('connection-container');
+        const appContainer = document.getElementById('app-container');
+        const gameContainer = document.getElementById('game-container');
+        // Puissance 4 specific
+        const p4DropZoneContainer = document.getElementById('p4-drop-zone-container');
+        const p4Board = document.getElementById('p4-board');
+        const statusMessage = document.getElementById('status-message');
+        const overlayMessage = document.getElementById('overlay-message');
+        const gameIdDisplay = document.getElementById('game-id-display');
+        const playerSymbolDisplay = document.getElementById('player-symbol');
+        const currentTurnDisplay = document.getElementById('current-turn');
+        const createGameButton = document.getElementById('create-game');
+        const joinGameButton = document.getElementById('join-game');
+        const gameIdInput = document.getElementById('game-id-input');
+        const replayControls = document.getElementById('replay-controls');
+        const replayButton = document.getElementById('replay-button');
+        const replayInfo = document.getElementById('replay-info');
+        // Chat elements
+        const chatContainer = document.getElementById('chat-container');
+        const chatMessagesDiv = document.getElementById('chat-messages');
+        const chatInput = document.getElementById('chat-input');
+        const sendChatMessageButton = document.getElementById('send-chat-message');
+
+        // --- Game Config & State ---
+        const P4_COLUMNS = 7;
+        const P4_ROWS = 6;
+        const cells = []; // Array to hold cell DOM elements (42 cells)
+        const dropZones = []; // Array to hold drop zone elements
+
+        let ws = null;
+        let clientId = null;
+        let gameId = null;
+        let playerSymbol = null; // 'R' or 'J'
+        let isMyTurn = false;
+        let isGameOver = false;
+        let reconnectAttempt = 0;
+        const MAX_RECONNECT_ATTEMPTS = 5;
+
+        // --- WebSocket Connection & Handling (Mostly Unchanged) ---
+        function connectWebSocket() {
+            // ... (Identique à morpion.html, gère la connexion/reconnexion) ...
+             if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) { return; }
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const wsUrl = `${wsProtocol}${window.location.host}`;
+            console.log(`Attempting to connect to WebSocket at ${wsUrl}...`);
+            connectionStatusDiv.textContent = `Connexion (essai ${reconnectAttempt + 1})...`;
+            connectionStatusDiv.style.color = 'orange';
+            ws = new WebSocket(wsUrl);
+            ws.onopen = () => { /* ... */ console.log('WS Open'); connectionStatusDiv.textContent = 'Connecté.'; connectionStatusDiv.style.color = 'green'; if (!gameId) { connectionContainer.style.display = 'block'; appContainer.style.display = 'none'; chatContainer.style.display = 'none'; } reconnectAttempt = 0; };
+            ws.onmessage = (event) => { try { const data = JSON.parse(event.data); console.log('Message received:', data); handleWebSocketMessage(data); } catch (e) { console.error("Parse/Handle Error:", e); }};
+            ws.onerror = (error) => { console.error('WS Error:', error); connectionStatusDiv.textContent = 'Erreur connexion.'; connectionStatusDiv.style.color = 'var(--error-color)'; };
+            ws.onclose = (event) => { console.log(`WS Closed: ${event.code}`); ws = null; isMyTurn = false; connectionContainer.style.display = 'none'; appContainer.style.display = 'none'; chatContainer.style.display = 'none'; if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) { reconnectAttempt++; const delay = Math.pow(2, reconnectAttempt) * 1000; connectionStatusDiv.textContent = `Déconnecté. Reconnexion dans ${delay / 1000}s...`; connectionStatusDiv.style.color = 'orange'; setTimeout(connectWebSocket, delay); } else { connectionStatusDiv.textContent = 'Déconnecté. Échec reconnexion.'; connectionStatusDiv.style.color = 'var(--error-color)'; alert("Connexion perdue."); }};
+
+        }
+
+        function handleWebSocketMessage(data) {
+             // ... (Identique à morpion.html pour: connected, game_created, game_started, move_made, game_over, replay_requested, replay_request_acknowledged, opponent_disconnected, chat_message, error)
+             // Les fonctions appelées (handleGameStarted, updateGameBoard, etc.) seront adaptées pour P4
+            switch (data.type) {
+                case 'connected': clientId = data.clientId; console.log(`Client ID: ${clientId}`); break;
+                case 'game_created': handleGameCreated(data); break;
+                case 'game_started': handleGameStarted(data); break;
+                case 'move_made': updateGameBoard(data.game); break; // Server sends updated game state
+                case 'game_over': isGameOver = true; handleGameOver(data); break;
+                case 'replay_requested': handleReplayRequested(data); break;
+                case 'replay_request_acknowledged': replayInfo.textContent = 'Demande Rejouer envoyée...'; replayButton.disabled = true; break;
+                case 'opponent_disconnected': handleOpponentDisconnected(data); break;
+                case 'chat_message': displayChatMessage(data); break;
+                case 'error': console.error(`Server Error: ${data.message}`); alert(`Erreur: ${data.message}`); createGameButton.disabled = false; joinGameButton.disabled = false; break;
+                default: console.log("Unknown message type:", data.type);
+            }
+        }
+
+        // --- Puissance 4 Board Initialization ---
+        function initializeBoard() {
+            p4Board.innerHTML = '';
+            p4DropZoneContainer.innerHTML = '';
+            cells.length = 0;
+            dropZones.length = 0;
+
+            // Create Drop Zones
+            for (let col = 0; col < P4_COLUMNS; col++) {
+                const dropZone = document.createElement('div');
+                dropZone.className = 'p4-drop-zone disabled'; // Start disabled
+                dropZone.dataset.column = col;
+                // Add visual cue like an arrow (optional)
+                // dropZone.innerHTML = '⬇'; // Down arrow
+                dropZone.addEventListener('click', handleDropZoneClick);
+                p4DropZoneContainer.appendChild(dropZone);
+                dropZones.push(dropZone);
+            }
+
+            // Create Cells (42 for 6x7)
+            for (let i = 0; i < P4_ROWS * P4_COLUMNS; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'p4-cell';
+                cell.dataset.index = i;
+                p4Board.appendChild(cell);
+                cells.push(cell);
+            }
+        }
+
+        // --- Game Action Handling ---
+        function handleDropZoneClick(event) {
+            if (!isMyTurn || isGameOver || event.target.classList.contains('disabled')) {
+                 console.log("Drop ignored: Not turn, game over, or column full/disabled.");
+                return;
+            }
+            const column = parseInt(event.target.dataset.column);
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                console.log(`Sending move: column ${column}`);
+                isMyTurn = false; // Assume move is sent, wait for server update
+                statusMessage.textContent = 'Envoi du coup...';
+                disableDropZones(); // Disable drop zones immediately
+
+                ws.send(JSON.stringify({
+                    type: 'make_move',
+                    gameId,
+                    column // Send column index for Puissance 4
+                }));
+            } else {
+                console.error("Cannot send move: WebSocket not open.");
+                alert("La connexion au serveur est perdue.");
+            }
+        }
+
+        function enableDropZones() {
+            // Only enable if it's my turn and game is not over
+            const canPlay = isMyTurn && !isGameOver;
+            dropZones.forEach(dz => {
+                 // We also need server state to know if column is full (handle in updateGameBoard)
+                 // For now, just enable/disable based on turn
+                 if (canPlay) {
+                     // Keep disabled class if column is full (server will tell us)
+                     if (!dz.classList.contains('full')) { // Check for 'full' class later
+                         dz.classList.remove('disabled');
+                         dz.classList.add('my-turn-hover'); // Add hover effect class
+                     }
+                 } else {
+                     dz.classList.add('disabled');
+                     dz.classList.remove('my-turn-hover');
+                 }
+            });
+        }
+
+        function disableDropZones() {
+            dropZones.forEach(dz => {
+                dz.classList.add('disabled');
+                dz.classList.remove('my-turn-hover');
+            });
+        }
+
+        // --- Chat Handling (Identical to morpion.html) ---
+        function sendChatMessage() { /* ... */ if (!ws || ws.readyState !== WebSocket.OPEN || !gameId) { addSystemMessage("Non connecté/pas en jeu."); return; } const msg=chatInput.value.trim(); if (msg) { ws.send(JSON.stringify({ type: 'send_message', gameId, message: msg })); chatInput.value = ''; chatInput.focus();} }
+        function displayChatMessage(data) { /* ... */ const {senderSymbol, message}=data; const el=document.createElement('div'); el.classList.add('chat-message'); const sender=document.createElement('span'); sender.classList.add('sender'); if(senderSymbol===playerSymbol){el.classList.add('my-message');} else {el.classList.add('opponent-message'); sender.textContent=`${senderSymbol}:`; sender.classList.add(senderSymbol==='R'?'player-R':'player-J'); el.appendChild(sender);} const text=document.createTextNode(` ${message}`); el.appendChild(text); chatMessagesDiv.appendChild(el); scrollToBottom(chatMessagesDiv); }
+        function addSystemMessage(message) { /* ... */ const el=document.createElement('div'); el.classList.add('chat-message','system-message'); el.textContent=message; chatMessagesDiv.appendChild(el); scrollToBottom(chatMessagesDiv); }
+        function scrollToBottom(element) { element.scrollTop = element.scrollHeight; }
+        function setChatEnabled(enabled) { chatInput.disabled = !enabled; sendChatMessageButton.disabled = !enabled; if (!enabled && document.activeElement === chatInput) chatInput.blur(); }
+
+        // --- UI Update and State Management Functions ---
+        function resetUIBeforeGame(isReplay = false) {
+            console.log(`Resetting P4 UI, isReplay: ${isReplay}`);
+            connectionContainer.style.display = 'none';
+            appContainer.style.display = 'flex';
+            gameContainer.style.display = 'block';
+            chatContainer.style.display = 'flex';
+            statusMessage.textContent = '';
+            statusMessage.style.color = 'var(--text-light)';
+            overlayMessage.className = '';
+            overlayMessage.style.opacity = 0;
+            overlayMessage.style.visibility = 'hidden';
+            replayControls.style.display = 'none';
+            replayButton.style.display = 'none';
+            replayButton.disabled = false;
+            replayInfo.textContent = '';
+
+            initializeBoard(); // Creates drop zones and cells
+            disableDropZones(); // Start disabled
+
+            isGameOver = false;
+            isMyTurn = false;
+
+            if (!isReplay) { chatMessagesDiv.innerHTML = ''; addSystemMessage("Bienvenue dans le chat !"); }
+            else { addSystemMessage("Nouvelle manche !"); }
+            setChatEnabled(true);
+        }
+
+        function handleGameCreated(data) {
+            console.log("Handling game_created for P4", data);
+            resetUIBeforeGame(false);
+            gameId = data.gameId;
+            // Player symbol determined by server ('R' or 'J')
+            playerSymbol = data.game.playerSymbols[clientId];
+            gameIdDisplay.textContent = gameId;
+            playerSymbolDisplay.textContent = playerSymbol;
+            playerSymbolDisplay.className = playerSymbol === 'R' ? 'player-R' : 'player-J';
+            statusMessage.textContent = 'En attente d\'un adversaire... Partagez le code !';
+            currentTurnDisplay.textContent = '-';
+            addSystemMessage(`Partie ${gameId} créée. Attente joueur ${playerSymbol === 'R' ? 'Jaune' : 'Rouge'}...`);
+            setChatEnabled(true);
+        }
+
+        function handleGameStarted(data) {
+            console.log("Handling game_started for P4", data);
+            const isReplay = (gameId === data.game.id && playerSymbol !== null);
+            resetUIBeforeGame(isReplay);
+
+            gameId = data.game.id;
+            if (!playerSymbol) { // If joining
+                playerSymbol = data.game.playerSymbols[clientId];
+            }
+
+            if (playerSymbol) {
+                playerSymbolDisplay.textContent = playerSymbol;
+                playerSymbolDisplay.className = playerSymbol === 'R' ? 'player-R' : 'player-J';
+            } else { console.error("Cannot determine P4 symbol!"); playerSymbolDisplay.textContent = '?'; }
+
+            gameIdDisplay.textContent = gameId;
+            updateGameBoard(data.game); // Update board and turn
+
+            if (!isReplay) { addSystemMessage("L'adversaire a rejoint ! La partie commence."); }
+            chatInput.focus();
+            setChatEnabled(true);
+        }
+
+        function updateGameBoard(game) {
+            console.log("Updating P4 game board", game);
+            if (!cells.length) initializeBoard(); // Safety check
+
+            // Clear previous winner highlights and dropped animations
+            cells.forEach(cell => {
+                 cell.classList.remove('winner-animation', 'dropped');
+                 // Update cell content based on board state
+                 const index = parseInt(cell.dataset.index);
+                 const cellOwner = game.board[index]; // 'R', 'J', or null
+                 cell.classList.remove('player-R', 'player-J'); // Clear previous owner
+                 if (cellOwner) {
+                     cell.classList.add(cellOwner === 'R' ? 'player-R' : 'player-J');
+                     // Add 'dropped' class if it just appeared (needs state comparison or server signal)
+                     // Simplification: just update color for now. Animation needs more logic.
+                 }
+            });
+
+            // Update turn indicator
+            currentTurnDisplay.textContent = game.currentTurn; // Should be 'R' or 'J'
+            currentTurnDisplay.className = game.currentTurn === 'R' ? 'player-R' : 'player-J';
+
+            // Update status message and turn logic
+            isMyTurn = (game.status === 'playing' && game.currentTurn === playerSymbol);
+            isGameOver = (game.status === 'finished' || game.status === 'aborted');
+
+            if (game.status === 'playing') {
+                statusMessage.textContent = isMyTurn ? 'C\'est votre tour !' : 'Tour de l\'adversaire...';
+                statusMessage.style.color = isMyTurn ? 'var(--success-color)' : 'var(--text-light)';
+                enableDropZones(); // Enables/disables based on isMyTurn
+                setChatEnabled(true);
+
+                // Mark full columns as disabled
+                 dropZones.forEach((dz, colIndex) => {
+                    // Check if the top cell of the column (row 0) is filled
+                    const topCellIndex = colIndex; // Index = row * cols + col => 0 * 7 + col
+                    if (game.board[topCellIndex] !== null) {
+                        dz.classList.add('disabled', 'full'); // Mark as full and disabled
+                         dz.classList.remove('my-turn-hover');
+                    } else if (isMyTurn) { // If not full and my turn, ensure enabled
+                        dz.classList.remove('disabled', 'full');
+                        dz.classList.add('my-turn-hover');
+                    } else { // Not my turn, ensure disabled but maybe not 'full'
+                         dz.classList.remove('my-turn-hover');
+                         dz.classList.add('disabled');
+                         // Keep 'full' class if it was already there
+                    }
+                });
+
+            } else if (game.status === 'waiting') {
+                statusMessage.textContent = 'En attente d\'un adversaire...';
+                disableDropZones();
+                setChatEnabled(true);
+            } else if (game.status === 'finished') {
+                // Status set by handleGameOver
+                disableDropZones();
+                setChatEnabled(true); // Allow chat after game
+            } else if (game.status === 'aborted') {
+                 statusMessage.textContent = 'Partie interrompue.';
+                 statusMessage.style.color = 'orange';
+                 disableDropZones();
+                 setChatEnabled(false);
+            }
+        }
+
+        function handleGameOver(data) {
+            console.log("Handling P4 game_over", data);
+            updateGameBoard(data.game); // Show final board
+            disableDropZones();
+            isGameOver = true;
+
+            const winner = data.winner; // 'R', 'J', or null
+            overlayMessage.className = '';
+            overlayMessage.classList.add('visible');
+
+            let endMessage = "";
+
+            if (winner) {
+                 highlightWinningCells(data.winningLine); // Highlight the winning line
+                if (winner === playerSymbol) {
+                    statusMessage.textContent = '🎉 Vous avez gagné ! 🎉';
+                    overlayMessage.textContent = 'VICTOIRE !';
+                    overlayMessage.classList.add('win');
+                    endMessage = "Vous avez gagné !";
+                    runWinnerConfetti();
+                } else {
+                    statusMessage.textContent = '😢 Vous avez perdu ! 😢';
+                    overlayMessage.textContent = 'PERDU !';
+                    overlayMessage.classList.add('lose');
+                    endMessage = `Joueur ${winner} a gagné.`;
+                    // Optional: Add a losing animation/effect
+                }
+            } else { // Draw
+                statusMessage.textContent = '😐 Match nul ! 😐';
+                overlayMessage.textContent = 'MATCH NUL';
+                overlayMessage.classList.add('draw');
+                endMessage = "Match nul !";
+                 // Optional: Add draw animation/effect
+            }
+
+            addSystemMessage(`Fin de la partie. ${endMessage}`);
+            setTimeout(() => { overlayMessage.style.opacity = 0; overlayMessage.style.visibility = 'hidden'; }, 3500);
+
+            replayControls.style.display = 'block';
+            replayButton.style.display = 'inline-block';
+            replayButton.disabled = false;
+            replayInfo.textContent = '';
+            setChatEnabled(true); // Keep chat enabled
+        }
+
+        function handleReplayRequested(data) {
+            console.log("Handling P4 replay_requested", data);
+             if (isGameOver) {
+                 replayInfo.textContent = 'Votre adversaire veut rejouer ! Cliquez sur "Rejouer".';
+                 replayButton.style.display = 'inline-block';
+             }
+         }
+
+        function handleOpponentDisconnected(data) {
+            console.log("Handling P4 opponent_disconnected", data);
+             statusMessage.textContent = data.message || 'Votre adversaire s\'est déconnecté.';
+             statusMessage.style.color = 'orange';
+             isGameOver = true;
+             isMyTurn = false;
+             disableDropZones();
+             replayControls.style.display = 'none';
+             setChatEnabled(false);
+             addSystemMessage("Votre adversaire s'est déconnecté. Le chat est désactivé.");
+             alert("Votre adversaire s'est déconnecté.");
+        }
+
+
+        // --- Animation and Utility Functions ---
+        function runWinnerConfetti() { /* ... (Identique à morpion.html) ... */ const duration = 3 * 1000; const animationEnd = Date.now() + duration; const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 1001 }; function randomInRange(min, max) { return Math.random() * (max - min) + min; } const interval = setInterval(function() { const timeLeft = animationEnd - Date.now(); if (timeLeft <= 0) return clearInterval(interval); const particleCount = 50 * (timeLeft / duration); confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } })); confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } })); }, 250); }
+
+        function highlightWinningCells(winningLine) {
+             if (!winningLine || !Array.isArray(winningLine)) {
+                 console.warn("No winning line data to highlight.");
+                 return;
+             }
+             console.log("Highlighting winning cells:", winningLine);
+             // Clear previous highlights first
+             cells.forEach(cell => cell.classList.remove('winner-animation'));
+             // Add highlight to the winning cells
+             winningLine.forEach(index => {
+                 if (cells[index]) {
+                     cells[index].classList.add('winner-animation');
+                 } else {
+                     console.warn(`Invalid index in winningLine: ${index}`);
+                 }
+             });
+         }
+
+        // --- Event Listeners Setup ---
+         createGameButton.addEventListener('click', (event) => {
+             if (ws && ws.readyState === WebSocket.OPEN) {
+                 const gameType = event.target.dataset.gametype || 'puissance4'; // Get game type
+                 console.log(`Requesting to create game of type: ${gameType}`);
+                 createGameButton.disabled = true;
+                 joinGameButton.disabled = true;
+                 ws.send(JSON.stringify({ type: 'create_game', gameType: gameType })); // Send type
+             } else { alert("Non connecté au serveur."); }
+        });
+
+         joinGameButton.addEventListener('click', () => {
+            const inputGameId = gameIdInput.value.trim().toUpperCase();
+             if (!inputGameId) { alert('Veuillez entrer un code de partie.'); return; }
+             if (ws && ws.readyState === WebSocket.OPEN) {
+                 console.log(`Requesting to join game: ${inputGameId}`);
+                 createGameButton.disabled = true;
+                 joinGameButton.disabled = true;
+                 ws.send(JSON.stringify({ type: 'join_game', gameId: inputGameId }));
+             } else { alert("Non connecté au serveur."); }
+        });
+
+         replayButton.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN && gameId && isGameOver) {
+                console.log(`Requesting replay for game: ${gameId}`);
+                replayButton.disabled = true;
+                replayInfo.textContent = 'Demande de rejouer envoyée...';
+                ws.send(JSON.stringify({ type: 'request_replay', gameId }));
+            } else { console.warn("Cannot request replay now."); }
+        });
+
+         sendChatMessageButton.addEventListener('click', sendChatMessage);
+         chatInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendChatMessage(); }
+        });
+
+        // --- Initial Setup ---
+        initializeBoard(); // Setup P4 board structure
+        connectWebSocket(); // Start connection
+
+    </script>
+
+</body>
+</html>
