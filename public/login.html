@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion</title>
+    <link rel="icon" type="image/png" href="images/main.png" sizes="16x16">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        .main-nav {
+            background-color: #333;
+            padding: 10px 0;
+            width: 100%;
+        }
+
+        .main-nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: center;
+        }
+
+        .main-nav li {
+            display: inline-block;
+            margin: 0 15px;
+        }
+
+        .main-nav a {
+            color: white;
+            text-decoration: none;
+            font-size: 18px;
+            padding: 10px 15px;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+        }
+
+        .main-nav a:hover,
+        .main-nav a.active {
+            background-color: #555;
+        }
+
+        .login-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            margin-top: 50px;
+        }
+
+        .login-container h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .form-group input[type="email"],
+        .form-group input[type="password"] {
+            width: calc(100% - 12px);
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+
+        .form-group button {
+            background-color: #333;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            transition: background-color 0.3s ease;
+        }
+
+        .form-group button:hover {
+            background-color: #555;
+        }
+
+        .form-group .error-message {
+            color: red;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        #message {
+            margin-top: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        #successMessage {
+            color: green;
+        }
+
+        #errorMessage {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="main-nav">
+        <ul>
+            <li><a href="login.html" class="active">Connexion</a></li>
+            <li><a href="register.html">Inscription</a></li>
+        </ul>
+    </nav>
+
+    <div class="login-container">
+        <h2>Connexion</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+                <div class="error-message" id="emailError"></div>
+            </div>
+            <div class="form-group">
+                <label for="password">Mot de passe:</label>
+                <input type="password" id="password" name="password" required>
+                <div class="error-message" id="passwordError"></div>
+            </div>
+            <div class="form-group">
+                <button type="submit">Se connecter</button>
+            </div>
+        </form>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('loginForm');
+            const messageDiv = document.getElementById('message');
+
+            loginForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const emailInput = document.getElementById('email');
+                const passwordInput = document.getElementById('password');
+                const email = emailInput.value;
+                const password = passwordInput.value;
+
+                if (!email) {
+                    document.getElementById('emailError').textContent = 'Veuillez entrer votre email.';
+                    return;
+                } else {
+                    document.getElementById('emailError').textContent = '';
+                }
+
+                if (!password) {
+                    document.getElementById('passwordError').textContent = 'Veuillez entrer votre mot de passe.';
+                    return;
+                } else {
+                    document.getElementById('passwordError').textContent = '';
+                }
+
+                try {
+                    const response = await fetch('/action/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ email, password }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        messageDiv.innerHTML = `<p id="successMessage">${data.message || 'Connexion réussie !'}</p>`;
+                        // Stockage du JWT dans le localStorage
+                        if (data.token) {
+                            localStorage.setItem('authToken', data.token);
+                            console.log('JWT stocké:', localStorage.getItem('jwtToken'));
+                            // Rediriger l'utilisateur après la connexion et le stockage du token
+                            window.location.href = '/'; // Remplacez par votre URL de tableau de bord
+                        } else {
+                            messageDiv.innerHTML = '<p id="errorMessage">Erreur: Le token JWT n\'a pas été reçu.</p>';
+                        }
+                    } else {
+                        messageDiv.innerHTML = `<p id="errorMessage">${data.error || 'Erreur de connexion.'}</p>`;
+                    }
+                } catch (error) {
+                    console.error('Erreur lors de l\'envoi de la requête:', error);
+                    messageDiv.innerHTML = '<p id="errorMessage">Erreur réseau lors de la connexion.</p>';
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>

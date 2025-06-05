@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sélection de Jeux</title>
-    <!-- Le CSS est directement dans la balise <style> ci-dessous -->
-    <!-- <link rel="stylesheet" href="style_index.css"> -->
     <link rel="icon" type="image/png" href="images/main.png" sizes="16x16">
 </head>
 <style>
@@ -49,6 +47,59 @@
 
 .main-nav a:hover,
 .main-nav a.active { /* Style pour le lien actif ou au survol */
+    background-color: #555;
+}
+
+/* Styles pour le dropdown */
+.dropdown {
+    position: relative;
+    display: inline-block;
+    margin-left: auto; /* Pousse l'élément vers la droite */
+}
+
+.dropdown-toggle {
+    color: white;
+    text-decoration: none;
+    font-size: 18px;
+    padding: 10px 15px;
+    border-radius: 4px;
+    transition: background-color 0.3s ease;
+    display: flex;
+    align-items: center;
+}
+
+.dropdown-toggle:hover {
+    background-color: #555;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: #333;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 10; /* Assure que le menu est au-dessus des autres éléments */
+    display: none; /* Initialement caché */
+}
+
+.dropdown:hover .dropdown-menu {
+    display: block; /* Affiche le menu au survol du parent */
+}
+
+.dropdown-menu li a {
+    color: white;
+    text-decoration: none;
+    font-size: 16px;
+    padding: 10px 15px;
+    display: block;
+    transition: background-color 0.3s ease;
+}
+
+.dropdown-menu li a:hover {
     background-color: #555;
 }
 
@@ -152,7 +203,8 @@
     <nav class="main-nav">
         <ul>
             <li><a href="index.html" class="active">Jeux</a></li>
-            <!-- Vous pourrez ajouter d'autres liens ici plus tard (ex: Contact, À propos) -->
+            <li><a href="classement.html" >Classement</a></li>
+            <li><a href="#" id="logoutLink">Déconnexion</a></li>
         </ul>
     </nav>
 
@@ -160,29 +212,40 @@
         <h1>Choisissez un jeu</h1>
 
         <div class="game-list">
-            <!-- Carte pour le jeu Morpion -->
             <div class="game-card">
-                <!-- Assurez-vous que le chemin vers l'image est correct -->
                 <img src="images/morpion-icon.png" alt="Icône du jeu Morpion">
                 <h2>Morpion Multijoueur</h2>
                 <p>Défiez un ami au jeu classique du Morpion en temps réel.</p>
                 <a href="morpion.html" class="play-button">Jouer</a>
             </div>
 
-            <!-- NOUVEAU : Carte pour le jeu Puissance 4 -->
             <div class="game-card">
-                <!-- Remplacez par le chemin vers votre icône Puissance 4 -->
                 <img src="images/puissance4-icon.png" alt="Icône du jeu Puissance 4">
                 <h2>Puissance 4 Multijoueur</h2>
                 <p>Alignez 4 jetons de votre couleur horizontalement, verticalement ou en diagonale.</p>
-                <!-- Lien vers la future page puissance4.html, marqué comme désactivé -->
                 <a href="puissance4.html" class="play-button">Jouer</a>
             </div>
 
-            <!-- Vous pourrez ajouter d'autres cartes pour d'autres jeux ici -->
-
-        </div>
+            </div>
     </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const authToken = localStorage.getItem('authToken');
+            const logoutLink = document.getElementById('logoutLink');
+
+            if (!authToken) {
+                window.location.href = 'login.html';
+            }
+
+            if (logoutLink) {
+                logoutLink.addEventListener('click', () => {
+                    localStorage.removeItem('authToken');
+                    window.location.href = 'login.html';
+                });
+            }
+        });
+    </script>
 
 </body>
 </html>

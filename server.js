@@ -1,19 +1,33 @@
 // Serveur Node.js avec Express et WebSocket
-const express = require('express');
-const http = require('http');
-const WebSocket = require('ws');
-const path = require('path');
+import express from 'express';
+import http from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
+import path from 'path';
+import jwt from 'jsonwebtoken'; // Importation de jsonwebtoken
+import pool from './config/database.js'; // Importation du pool de connexions à la base de données
+import { verify } from 'argon2';// Importation de argon2
+import { hash } from 'argon2';
+import { fileURLToPath } from 'url';
+import { body, validationResult } from 'express-validator';
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocketServer({ server });
+
+// Middleware pour parser le corps des requêtes JSON
+app.use(express.json());
 
 // Servir les fichiers statiques (index.html, morpion.html, puissance4.html, etc.)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Structure pour gérer les parties et les clients
 const games = {}; // Stocke l'état de chaque partie { gameId: gameData }
 const clients = {}; // Stocke les connexions WebSocket { clientId: ws }
+
+// Clé secrète pour signer les JWT (à garder en sécurité dans une variable d'environnement !)
+const JWT_SECRET = process.env.JWT_SECRET || 'votreClesSecreteTresLongueEtComplexe';
 
 // --- Constantes Puissance 4 ---
 const P4_COLUMNS = 7;
@@ -35,7 +49,7 @@ const PubSub = {
 
     publish: function(gameId, data) {
         if (!this.subscribers[gameId]) {
-             console.log(`No subscribers for game ${gameId} to publish to.`);
+            console.log(`No subscribers for game ${gameId} to publish to.`);
             return;
         }
 
@@ -86,9 +100,172 @@ const PubSub = {
     }
 };
 
+// --- Middleware pour vérifier le JWT (exemple) ---
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (token == null) return res.sendStatus(401);
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.sendStatus(403);
+        req.user = user;
+        next();
+    });
+};
+
+// --- Route pour la connexion via formulaire ---
+app.post('/action/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email et mot de passe requis.' });
+    }
+
+    try {
+        // Récupérer l'utilisateur depuis la base de données en utilisant l'email
+        const [rows] = await pool.execute('SELECT id_user, email, password FROM users WHERE email = ?', [email]);
+        const user = rows[0];
+
+        if (user) {
+            // Comparer le mot de passe fourni avec le mot de passe hashé dans la base de données
+            const passwordMatch = await verify(user.password, password);
+            // Comparer le mot de passe fourni avec le mot de passe hashé dans la base de données
+            // **Important:** Vous devriez utiliser une librairie comme bcrypt pour comparer les mots de passe
+            // Ceci est un exemple **INSECURE** et doit être remplacé par une comparaison de hachage appropriée.
+            if (passwordMatch) {
+                // Générer un JWT
+                const token = jwt.sign({ userId: user.id_user, email: user.email }, JWT_SECRET, { expiresIn: '1000000h' }); // Durée d'expiration à adapter
+
+                return res.json({ message: 'Connexion réussie !', token });
+            } else {
+                return res.status(401).json({ error: 'Mot de passe incorrect.' });
+            }
+        } else {
+            return res.status(404).json({ error: 'Utilisateur non trouvé.' });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la connexion:', error);
+        return res.status(500).json({ error: 'Erreur serveur lors de la connexion.' });
+    }
+});
+
+// --- Route pour l'inscription (sans confirmPassword) ---
+app.post('/action/register', [
+    // Validation des champs avec express-validator
+    body('email')
+        .trim()
+        .notEmpty()
+        .withMessage('L\'adresse email est requise.')
+        .isEmail()
+        .withMessage('L\'adresse email n\'est pas valide.')
+        .isLength({ max: 100 })
+        .withMessage('L\'adresse email ne doit pas dépasser 100 caractères.')
+        .normalizeEmail(),
+    body('password')
+        .notEmpty()
+        .withMessage('Le mot de passe est requis.')
+        .isLength({ min: 6 })
+        .withMessage('Le mot de passe doit comporter au moins 6 caractères.'),
+], async (req, res) => {
+    // Récupérer les erreurs de validation
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, password } = req.body;
+
+    try {
+        // Vérifier si l'email existe déjà
+        const [existingEmail] = await pool.execute('SELECT email FROM users WHERE email = ?', [email]);
+        if (existingEmail.length > 0) {
+            return res.status(409).json({ error: 'Cette adresse email est déjà enregistrée.' });
+        }
+
+        // Hacher le mot de passe
+        const hashedPassword = await hash(password);
+        
+        // Enregistrer le nouvel utilisateur dans la base de données
+        const [result] = await pool.execute(
+            'INSERT INTO users (email, password, elo) VALUES (?, ?, ?)',
+            [email, hashedPassword, 100]
+        );
+        
+        if (result.insertId) {
+            // Récupérer l'ID du nouvel utilisateur
+            const userId = result.insertId;
+
+            // Générer un JWT
+            const token = jwt.sign({ userId: userId, email: email }, JWT_SECRET, { expiresIn: '1h' }); // Durée d'expiration à adapter
+
+            // Renvoyer le JWT dans la réponse
+            return res.status(201).json({ message: 'Inscription réussie !', token });
+        } else {
+            return res.status(500).json({ error: 'Erreur lors de l\'enregistrement de l\'utilisateur.' });
+        }
+
+    } catch (error) {
+        console.error('Erreur lors de l\'inscription:', error);
+        return res.status(500).json({ error: 'Erreur serveur lors de l\'inscription.' });
+    }
+});
+
+// --- Route pour récupérer le classement des joueurs ---
+app.get('/action/classement', authenticateToken ,async (req, res) => {
+    try {
+        const [rows] = await pool.execute('SELECT email, elo FROM users ORDER BY elo DESC');
+        return res.status(200).json(rows);
+    } catch (error) {
+        console.error('Erreur lors de la récupération du classement:', error);
+        return res.status(500).json({ error: 'Erreur serveur lors de la récupération du classement.' });
+    }
+});
+
+// --- Route pour récupérer les informations de l'utilisateur connecté ---
+app.get('/action/userinfo', authenticateToken, async (req, res) => {
+    try {
+        const userIdFromToken = req.user.userId; // Récupérer l'ID de l'utilisateur depuis le JWT
+
+        const [user] = await pool.execute('SELECT email, elo FROM users WHERE id_user = ?', [userIdFromToken]);
+
+        if (user.length > 0) {
+            return res.status(200).json(user[0]); // Renvoie un objet avec email et elo
+        } else {
+            return res.status(404).json({ error: 'Utilisateur non trouvé.' });
+        }
+    } catch (error) {
+        console.error('Erreur lors de la récupération des informations de l\'utilisateur:', error);
+        return res.status(500).json({ error: 'Erreur serveur.' });
+    }
+});
 
 // --- Gestionnaire de connexion WebSocket ---
-wss.on('connection', (ws) => {
+wss.on('connection', (ws,req) => {
+
+    const urlParams = new URLSearchParams(req.url.split('?')[1]);
+    const token = urlParams.get('token');
+    if (token) {
+        jwt.verify(token, JWT_SECRET, (err, decoded) => {
+            if (err) {
+                console.error('Erreur de vérification du JWT:', err);
+                ws.send(JSON.stringify({ type: 'auth_error', message: 'Token invalide ou expiré.' }));
+                ws.close(1008, 'Token invalide'); // Code 1008 indique une violation de politique
+                return;
+            }
+            // Token valide, attacher les informations de l'utilisateur à l'objet ws
+            ws.userId = decoded.userId; // Supposons que votre JWT contient un 'userId'
+            console.log(`Client ${ws.userId} (${ws.username}) connecté via WebSocket.`);
+
+        
+
+        });
+    } else {
+        console.log('Client non authentifié connecté via WebSocket. Connexion non autorisée.');
+        ws.send(JSON.stringify({ type: 'auth_error', message: 'Authentification requise.' }));
+        ws.close(1008, 'Authentification requise');
+        return;
+    }
     // Générer un ID client unique
     const clientId = Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
     clients[clientId] = ws;
@@ -129,7 +306,7 @@ wss.on('connection', (ws) => {
                     console.log(`Move ignored: Game ${data.gameId} not found for client ${clientId}.`);
                     // Informer le client?
                     if (clients[clientId]?.readyState === WebSocket.OPEN) {
-                         clients[clientId].send(JSON.stringify({ type: 'error', message: 'Partie introuvable pour effectuer le coup.' }));
+                        clients[clientId].send(JSON.stringify({ type: 'error', message: 'Partie introuvable pour effectuer le coup.' }));
                     }
                 }
                 break;
@@ -225,7 +402,7 @@ function handleCreateGame(clientId, data) {
         gameId,
         game: games[gameId] // Envoyer l'objet jeu complet
     });
-    console.log(`Game ${gameId} (${gameType}) created by ${clientId}. Waiting for opponent.`);
+    console.log(`Game <span class="math-inline">\{gameId\} \(</span>{gameType}) created by ${clientId}. Waiting for opponent.`);
 }
 
 /**
@@ -269,7 +446,7 @@ function handleJoinGame(clientId, data) {
     // Vérifier si la partie est déjà pleine
     if (playerSlotFull) {
         clientWs.send(JSON.stringify({ type: 'error', message: 'Cette partie est déjà complète.' }));
-        console.log(`Join attempt failed: Game ${gameId} (${game.gameType}) is full. Client ${clientId} rejected.`);
+        console.log(`Join attempt failed: Game <span class="math-inline">\{gameId\} \(</span>{game.gameType}) is full. Client ${clientId} rejected.`);
         return;
     }
 
@@ -283,10 +460,10 @@ function handleJoinGame(clientId, data) {
 
      // Vérifier si la partie n'est pas déjà en cours ou terminée (double sécurité)
      if (game.status !== 'waiting') {
-         clientWs.send(JSON.stringify({ type: 'error', message: 'Impossible de rejoindre une partie déjà commencée ou terminée.' }));
-         console.log(`Join attempt failed: Game ${gameId} status is '${game.status}'. Client ${clientId} rejected.`);
-         return;
-     }
+        clientWs.send(JSON.stringify({ type: 'error', message: 'Impossible de rejoindre une partie déjà commencée ou terminée.' }));
+        console.log(`Join attempt failed: Game <span class="math-inline">\{gameId\} status is '</span>{game.status}'. Client ${clientId} rejected.`);
+        return;
+    }
 
 
     // Ajouter le second joueur
@@ -303,7 +480,7 @@ function handleJoinGame(clientId, data) {
         type: 'game_started',
         game // Envoyer l'état complet mis à jour
     });
-    console.log(`Client ${clientId} joined game ${gameId} (${game.gameType}) as Player ${opponentSymbol}. Game started.`);
+    console.log(`Client ${clientId} joined game <span class="math-inline">\{gameId\} \(</span>{game.gameType}) as Player ${opponentSymbol}. Game started.`);
 }
 
 // --- Logique Spécifique au Morpion ---
@@ -313,7 +490,7 @@ function handleJoinGame(clientId, data) {
  * @param {string} clientId - ID du joueur.
  * @param {object} data - Données ({ gameId: '...', position: 0-8 }).
  */
-function handleMakeMoveMorpion(clientId, data) {
+async function handleMakeMoveMorpion(clientId, data) { // Ajout de 'async'
     const { gameId, position } = data;
     const game = games[gameId];
 
@@ -336,11 +513,39 @@ function handleMakeMoveMorpion(clientId, data) {
     const isDraw = !winner && !game.board.includes(null);
 
     if (winner) {
-        game.status = 'finished'; game.winner = winner;
+        game.status = 'finished';
+        game.winner = winner;
         console.log(`Morpion game ${gameId} finished. Winner: ${winner}`);
+
+        // --- Logique de mise à jour de l'ELO pour le Morpion ---
+        const winnerClientId = Object.keys(game.playerSymbols).find(key => game.playerSymbols[key] === winner);
+        const loserClientId = Object.keys(game.playerSymbols).find(key => game.playerSymbols[key] !== winner);
+
+        const winnerWs = clients[winnerClientId];
+        const loserWs = clients[loserClientId];
+
+        if (winnerWs && winnerWs.userId) {
+            try {
+                await pool.execute('UPDATE users SET elo = elo + 10 WHERE id_user = ?', [winnerWs.userId]);
+                console.log(`ELO updated: +10 for winner ${winnerWs.userId}`);
+            } catch (e) {
+                console.error(`Error updating ELO for winner ${winnerWs.userId}:`, e);
+            }
+        }
+        if (loserWs && loserWs.userId) {
+            try {
+                await pool.execute('UPDATE users SET elo = elo - 10 WHERE id_user = ?', [loserWs.userId]);
+                console.log(`ELO updated: -10 for loser ${loserWs.userId}`);
+            } catch (e) {
+                console.error(`Error updating ELO for loser ${loserWs.userId}:`, e);
+            }
+        }
+        // --- Fin Logique ELO ---
+
         PubSub.publish(gameId, { type: 'game_over', game, winner });
     } else if (isDraw) {
-        game.status = 'finished'; game.winner = null;
+        game.status = 'finished';
+        game.winner = null;
         console.log(`Morpion game ${gameId} finished. Draw.`);
         PubSub.publish(gameId, { type: 'game_over', game, winner: null });
     } else {
@@ -349,7 +554,6 @@ function handleMakeMoveMorpion(clientId, data) {
         PubSub.publish(gameId, { type: 'move_made', game });
     }
 }
-
 /**
  * Vérifie s'il y a un gagnant au Morpion.
  * @param {Array<string|null>} board - Le tableau de jeu 1D (taille 9).
@@ -377,7 +581,7 @@ function checkWinnerMorpion(board) {
  * @param {string} clientId - ID du joueur.
  * @param {object} data - Données ({ gameId: '...', column: 0-6 }).
  */
-function handleMakeMovePuissance4(clientId, data) {
+async function handleMakeMovePuissance4(clientId, data) { // Ajout de 'async'
     const { gameId, column } = data; // Le client envoie l'index de la colonne (0-6)
     const game = games[gameId];
 
@@ -423,6 +627,32 @@ function handleMakeMovePuissance4(clientId, data) {
         game.winner = playerSymbol; // Le joueur courant a gagné
         game.winningLine = winCheckResult; // Stocker les indices gagnants
         console.log(`P4 game ${gameId} finished. Winner: ${playerSymbol}. Line: [${winCheckResult.join(', ')}]`);
+
+        // --- Logique de mise à jour de l'ELO pour Puissance 4 ---
+        const winnerClientId = Object.keys(game.playerSymbols).find(key => game.playerSymbols[key] === playerSymbol);
+        const loserClientId = Object.keys(game.playerSymbols).find(key => game.playerSymbols[key] !== playerSymbol);
+
+        const winnerWs = clients[winnerClientId];
+        const loserWs = clients[loserClientId];
+
+        if (winnerWs && winnerWs.userId) {
+            try {
+                await pool.execute('UPDATE users SET elo = elo + 10 WHERE id_user = ?', [winnerWs.userId]);
+                console.log(`ELO updated: +10 for winner ${winnerWs.userId}`);
+            } catch (e) {
+                console.error(`Error updating ELO for winner ${winnerWs.userId}:`, e);
+            }
+        }
+        if (loserWs && loserWs.userId) {
+            try {
+                await pool.execute('UPDATE users SET elo = elo - 10 WHERE id_user = ?', [loserWs.userId]);
+                console.log(`ELO updated: -10 for loser ${loserWs.userId}`);
+            } catch (e) {
+                console.error(`Error updating ELO for loser ${loserWs.userId}:`, e);
+            }
+        }
+        // --- Fin Logique ELO ---
+
         PubSub.publish(gameId, { type: 'game_over', game, winner: playerSymbol, winningLine: winCheckResult });
     } else if (!game.board.includes(null)) { // Vérifier si match nul (plateau plein, pas de gagnant)
         game.status = 'finished';
@@ -697,6 +927,7 @@ function handleDisconnect(clientId) {
         console.log(`Client ${clientId} was not found in any active game.`);
     }
 }
+
 
 
 // --- Démarrer le serveur ---

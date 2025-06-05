@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classement des Joueurs</title>
+    <link rel="icon" type="image/png" href="images/main.png" sizes="16x16">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            align-items: center; /* Centre le contenu horizontalement */
+        }
+
+        /* Style de la barre de navigation */
+        .main-nav {
+            background-color: #333;
+            padding: 10px 0;
+            width: 100%;
+        }
+
+        .main-nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: center; /* Centre les éléments */
+        }
+
+        .main-nav li {
+            display: inline-block; /* Met les éléments sur la même ligne */
+            margin: 0 15px;
+        }
+
+        .main-nav a {
+            color: white;
+            text-decoration: none;
+            font-size: 18px;
+            padding: 10px 15px;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+        }
+
+        .main-nav a:hover,
+        .main-nav a.active { /* Style pour le lien actif ou au survol */
+            background-color: #555;
+        }
+
+        /* Styles pour le dropdown */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+            margin-left: auto; /* Pousse l'élément vers la droite */
+        }
+
+        .dropdown-toggle {
+            color: white;
+            text-decoration: none;
+            font-size: 18px;
+            padding: 10px 15px;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+
+        .dropdown-toggle:hover {
+            background-color: #555;
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background-color: #333;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 10; /* Assure que le menu est au-dessus des autres éléments */
+            display: none; /* Initialement caché */
+        }
+
+        .dropdown:hover .dropdown-menu {
+            display: block; /* Affiche le menu au survol du parent */
+        }
+
+        .dropdown-menu li a {
+            color: white;
+            text-decoration: none;
+            font-size: 16px;
+            padding: 10px 15px;
+            display: block;
+            transition: background-color 0.3s ease;
+        }
+
+        .dropdown-menu li a:hover {
+            background-color: #555;
+        }
+
+        /* Conteneur principal pour le classement */
+        .ranking-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-top: 30px;
+            width: 80%;
+            max-width: 800px;
+        }
+
+        .ranking-container h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        /* Style du tableau de classement */
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .ranking-table th, .ranking-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .ranking-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+
+        .ranking-table tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="main-nav">
+        <ul>
+            <li><a href="index.html">Jeux</a></li>
+            <li><a href="classement.html" class="active">Classement</a></li>
+            <li><a href="#" id="logoutLink">Déconnexion</a></li>
+        </ul>
+    </nav>
+
+    <main class="ranking-container">
+        <h1>Classement des Joueurs</h1>
+        <table class="ranking-table" id="rankingTable">
+            <thead>
+                <tr>
+                    <th>Position</th>
+                    <th>Email</th>
+                    <th>Elo</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const authToken = localStorage.getItem('authToken');
+            const logoutLink = document.getElementById('logoutLink');
+            const rankingTableBody = document.getElementById('rankingTable').getElementsByTagName('tbody')[0];
+
+            if (!authToken) {
+                window.location.href = 'login.html';
+            }
+
+            if (logoutLink) {
+                logoutLink.addEventListener('click', () => {
+                    localStorage.removeItem('authToken');
+                    window.location.href = 'login.html';
+                });
+            }
+
+            // Fonction pour récupérer et afficher le classement
+            async function fetchRanking() {
+                try {
+                    const response = await fetch('/action/classement', {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${authToken}` // Si votre API nécessite une authentification pour le classement
+                        }
+                    });
+
+                    if (!response.ok) {
+                        console.error('Erreur lors de la récupération du classement:', response.status);
+                        // Gérer l'erreur (ex: afficher un message à l'utilisateur)
+                        return;
+                    }
+
+                    const data = await response.json();
+
+                    // Vider le corps du tableau avant d'ajouter les nouvelles données
+                    rankingTableBody.innerHTML = '';
+
+                    if (data && Array.isArray(data)) {
+                        // Trier les joueurs par Elo (du plus haut au plus bas)
+                        data.sort((a, b) => b.elo - a.elo);
+
+                        data.forEach((user, index) => {
+                            const row = rankingTableBody.insertRow();
+                            const positionCell = row.insertCell();
+                            const emailCell = row.insertCell();
+                            const eloCell = row.insertCell();
+
+                            positionCell.textContent = index + 1;
+                            emailCell.textContent = user.email;
+                            eloCell.textContent = user.elo;
+                        });
+                    } else {
+                        const row = rankingTableBody.insertRow();
+                        const messageCell = row.insertCell();
+                        messageCell.colSpan = 3;
+                        messageCell.textContent = 'Aucun joueur classé trouvé.';
+                    }
+
+                } catch (error) {
+                    console.error('Erreur lors de la requête de classement:', error);
+                    // Gérer l'erreur (ex: afficher un message à l'utilisateur)
+                }
+            }
+
+            // Appeler la fonction pour récupérer le classement au chargement de la page
+            fetchRanking();
+        });
+    </script>
+
+</body>
+</html>

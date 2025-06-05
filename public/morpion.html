@@ -341,6 +341,38 @@
        /* align-self: center; /* Décommentez pour centrer */
     }
 
+    #player-elo { font-size: 0.9em; color: var(--text-light); }
+
+    /* Styles généraux pour l'affichage de l'ELO */
+    #elo-value { /* Utilisation de l'ID correct */
+        font-weight: bold;
+        transition: color 0.3s ease; /* Transition douce pour la couleur si elle change */
+    }
+
+    /* Animation pour un gain d'ELO */
+    .elo-gain {
+        color: green; /* Rend le texte vert pendant l'animation */
+        animation: pulse-gain 0.5s ease-out; /* Nom de l'animation, durée, fonction de temps */
+    }
+
+    @keyframes pulse-gain {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.2); opacity: 0.7; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* Animation pour une perte d'ELO */
+    .elo-loss {
+        color: red; /* Rend le texte rouge pendant l'animation */
+        animation: pulse-loss 0.5s ease-out;
+    }
+
+    @keyframes pulse-loss {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(0.8); opacity: 0.7; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    
     /* Desktop Layout */
     @media (min-width: 768px) {
        :root { --cell-size: 100px; } /* Cellules plus grandes sur desktop */
@@ -414,6 +446,7 @@
         <h2>Partie : <span id="game-id-display"></span></h2>
         <div>Vous êtes : <span id="player-symbol"></span></div>
         <div>Tour : <span id="current-turn"></span></div>
+        <div id="player-elo">Votre Elo : <span id="elo-value"></span></div>
       </div>
       <div id="game-board">
         <!-- Les cellules seront générées par JS -->
@@ -462,6 +495,9 @@
     const chatMessagesDiv = document.getElementById('chat-messages');
     const chatInput = document.getElementById('chat-input');
     const sendChatMessageButton = document.getElementById('send-chat-message');
+    const playerEloDisplay = document.getElementById('elo-value');
+    const playerEloContainer = document.getElementById('player-elo');
+
     const cells = []; // Array to hold cell DOM elements
 
     // --- Game State Variables ---
@@ -474,15 +510,53 @@
     let reconnectAttempt = 0;
     const MAX_RECONNECT_ATTEMPTS = 5;
 
+
+    const authToken = localStorage.getItem('authToken');
+    if (!authToken) {
+        window.location.href = 'login.html';
+    }
+
+        async function fetchUserInfo() {
+            try {
+                const response = await fetch('/action/userinfo', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.elo !== undefined) {
+                        playerEloDisplay.textContent = data.elo;
+                    } else {
+                        playerEloContainer.style.display = 'none';
+                    }
+                } else {
+                    console.error('Erreur lors de la récupération des informations de l\'utilisateur');
+                    playerEloContainer.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Erreur de réseau lors de la récupération des informations de l\'utilisateur:', error);
+                playerEloContainer.style.display = 'none';
+            }
+        }
+
+    fetchUserInfo();
+    
     // --- WebSocket Connection ---
     function connectWebSocket() {
         if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
             console.log("WebSocket is already open or connecting.");
             return;
         }
-
+        const token = localStorage.getItem('authToken');
+        const authToken = localStorage.getItem('authToken');
         const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        const wsUrl = `${wsProtocol}${window.location.host}`;
+        var wsUrl = `${wsProtocol}${window.location.host}`;
+        if(token){
+            wsUrl += `?token=${token}`;
+        }
         console.log(`Attempting to connect to WebSocket at ${wsUrl}...`);
         connectionStatusDiv.textContent = `Connexion (essai ${reconnectAttempt + 1})...`;
         connectionStatusDiv.style.color = 'orange';
@@ -885,9 +959,15 @@
         overlayMessage.classList.add('visible'); // Make overlay appear
 
         let endMessage = ""; // For chat log
-
+        const eloValueElement = document.getElementById('elo-value');
+        let oldElo = parseInt(eloValueElement.textContent, 10);
+        let newElo;
+        let animationClass = '';
         if (winner) {
             if (winner === playerSymbol) {
+                newElo = oldElo + 10;
+                animationClass = 'elo-gain';
+                eloValueElement.textContent = newElo;
                 statusMessage.textContent = '🎉 Vous avez gagné ! 🎉';
                 overlayMessage.textContent = 'VICTOIRE !';
                 overlayMessage.classList.add('win');
@@ -895,6 +975,9 @@
                 runWinnerConfetti();
                 highlightWinningCells(data.game.board);
             } else {
+                newElo = oldElo - 10;
+                animationClass = 'elo-loss';
+                eloValueElement.textContent = newElo;
                 statusMessage.textContent = '😢 Vous avez perdu ! 😢';
                 overlayMessage.textContent = 'PERDU !';
                 overlayMessage.classList.add('lose');
@@ -909,6 +992,13 @@
             gameBoard.classList.add('draw-animation');
         }
 
+        if (animationClass) {
+                eloValueElement.classList.add(animationClass);
+                // Retirer la classe d'animation après un certain temps pour permettre de rejouer l'animation
+                eloValueElement.addEventListener('animationend', () => {
+                    eloValueElement.classList.remove(animationClass);
+                }, { once: true });
+            }
          addSystemMessage(`Fin de la partie. ${endMessage}`);
 
         // Hide overlay after a delay

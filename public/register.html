@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscription</title>
+    <link rel="icon" type="image/png" href="images/main.png" sizes="16x16">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            align-items: center; /* Centre le contenu horizontalement */
+            justify-content: flex-start; /* Aligne le contenu au début verticalement */
+        }
+
+        /* Style de la barre de navigation */
+        .main-nav {
+            background-color: #333;
+            padding: 10px 0;
+            width: 100%;
+        }
+
+        .main-nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: center; /* Centre les éléments */
+        }
+
+        .main-nav li {
+            display: inline-block; /* Met les éléments sur la même ligne */
+            margin: 0 15px;
+        }
+
+        .main-nav a {
+            color: white;
+            text-decoration: none;
+            font-size: 18px;
+            padding: 10px 15px;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+        }
+
+        .main-nav a:hover,
+        .main-nav a.active { /* Style pour le lien actif ou au survol */
+            background-color: #555;
+        }
+
+        /* Style du formulaire d'inscription */
+        .register-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            margin-top: 50px; /* Ajoute de l'espace entre la nav et le formulaire */
+        }
+
+        .register-container h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .form-group input[type="email"],
+        .form-group input[type="password"],
+        .form-group input[type="text"] {
+            width: calc(100% - 12px);
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+
+        .form-group button {
+            background-color: #333;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            transition: background-color 0.3s ease;
+        }
+
+        .form-group button:hover {
+            background-color: #555;
+        }
+
+        .form-group .error-message {
+            color: red;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .success-message {
+            color: green;
+            text-align: center;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="main-nav">
+        <ul>
+            <li><a href="login.html">Connexion</a></li>
+            <li><a href="register.html" class="active">Inscription</a></li>
+        </ul>
+    </nav>
+
+    <div class="register-container">
+        <h2>Inscription</h2>
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+                <div class="error-message" id="emailError"></div>
+            </div>
+            <div class="form-group">
+                <label for="password">Mot de passe:</label>
+                <input type="password" id="password" name="password" required>
+                <div class="error-message" id="passwordError"></div>
+            </div>
+            <div class="form-group">
+                <label for="confirmPassword">Confirmer le mot de passe:</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" required>
+                <div class="error-message" id="confirmPasswordError"></div>
+            </div>
+            <div class="form-group">
+                <button type="submit">S'inscrire</button>
+            </div>
+        </form>
+        <div class="success-message" id="registrationSuccess" style="display:none;"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const registerForm = document.getElementById('registerForm');
+            const emailInput = document.getElementById('email');
+            const passwordInput = document.getElementById('password');
+            const confirmPasswordInput = document.getElementById('confirmPassword');
+            const emailError = document.getElementById('emailError');
+            const passwordError = document.getElementById('passwordError');
+            const confirmPasswordError = document.getElementById('confirmPasswordError');
+            const registrationSuccess = document.getElementById('registrationSuccess');
+
+            registerForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                // Réinitialiser les messages d'erreur
+                emailError.textContent = '';
+                passwordError.textContent = '';
+                confirmPasswordError.textContent = '';
+                registrationSuccess.style.display = 'none';
+
+                const email = emailInput.value;
+                const password = passwordInput.value;
+                const confirmPassword = confirmPasswordInput.value;
+
+                if (password !== confirmPassword) {
+                    confirmPasswordError.textContent = 'Les mots de passe ne correspondent pas.';
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/action/register', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ email, password }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        registrationSuccess.textContent = data.message;
+                        registrationSuccess.style.display = 'block';
+                        registerForm.reset();
+
+                        // Récupérer et stocker le JWT (exemple : localStorage)
+                        if (data.token) {
+                            localStorage.setItem('authToken', data.token);
+                            console.log('JWT reçu et stocké:', data.token);
+                            // Rediriger l'utilisateur vers une autre page après un délai
+                            window.location.href = 'index.html';
+                           
+                        } else {
+                            window.location.href = 'register.html';
+                        }
+                    } else {
+                        // Afficher les erreurs renvoyées par le serveur
+                        if (data.errors) {
+                            data.errors.forEach(error => {
+                                switch (error.param) {
+                                    case 'email':
+                                        emailError.textContent = error.msg;
+                                        break;
+                                    case 'password':
+                                        passwordError.textContent = error.msg;
+                                        break;
+                                    case 'confirmPassword':
+                                        confirmPasswordError.textContent = error.msg;
+                                        break;
+                                    default:
+                                        console.error('Erreur d\'inscription inconnue:', error);
+                                }
+                            });
+                        } else if (data.error) {
+                            if (data.error.includes('email')) {
+                                emailError.textContent = data.error;
+                            } else {
+                                alert(`Erreur d'inscription: ${data.error}`);
+                            }
+                        } else {
+                            alert('Une erreur inconnue s\'est produite lors de l\'inscription.');
+                        }
+                    }
+
+                } catch (error) {
+                    console.error('Erreur lors de l\'envoi de la requête d\'inscription:', error);
+                    alert('Erreur réseau lors de l\'inscription.');
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
